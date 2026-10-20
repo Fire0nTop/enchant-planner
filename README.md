@@ -100,17 +100,9 @@ of CI.
 ### Releases
 
 GitHub Actions builds and tests both versions on every push. Pushing a tag such as `v1.0.1`
-also creates a GitHub release with both jars attached, using `CHANGELOG.md` as the description:
-
-```bash
-git tag v1.0.1
-```
-
-```bash
-git push origin v1.0.1
-```
-
-Bump `mod_version` in `gradle.properties` and add a `CHANGELOG.md` entry before tagging.
+also creates a GitHub release with both jars and publishes them to Modrinth. Bump `mod_version`
+and add a `CHANGELOG.md` section first. See [docs/modrinth.md](docs/modrinth.md) for the steps and
+the one-time Modrinth setup.
 
 ## Credits and license
 

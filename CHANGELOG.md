@@ -1,8 +1,9 @@
 # Changelog
 
-Download the jar that matches your Minecraft version:
-`enchant-planner-<version>+26.2.jar` for Minecraft 26.2, `enchant-planner-<version>+26.3.jar`
-for Minecraft 26.3. Both need Fabric Loader 0.19.5+ and Fabric API.
+## 1.0.1
+
+- The license texts (this mod's and iamcal/enchant-order's) are now included in the jar.
+- Releases are also published to Modrinth automatically.
 
 ## 1.0.0
 

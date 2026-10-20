@@ -23,6 +23,12 @@ jobs:
       - uses: gradle/actions/setup-gradle@v5
       - name: Build and test
         run: ./gradlew build -Pmc=${{ matrix.mc }}
+      - name: Check the Modrinth upload request (dry run)
+        env:
+          MODRINTH_DRY_RUN: '1'
+        run: |
+          version=$(grep '^mod_version=' gradle.properties | cut -d= -f2)
+          .github/scripts/modrinth-upload.sh "$version" "${{ matrix.mc }}" build/libs/enchant-planner-$version+${{ matrix.mc }}.jar
       - uses: actions/upload-artifact@v4
         with:
           name: enchant-planner-${{ matrix.mc }}
@@ -41,8 +47,42 @@ jobs:
         with:
           path: jars
           merge-multiple: true
+      - name: Release notes
+        run: |
+          {
+            echo 'Download the jar for your Minecraft version: `+26.2` or `+26.3`. Needs Fabric Loader 0.19.5+ and Fabric API.'
+            echo
+            .github/scripts/release-notes.sh "${GITHUB_REF_NAME#v}"
+          } > release-notes.md
       - uses: softprops/action-gh-release@v2
         with:
           name: Enchant Planner ${{ github.ref_name }}
-          body_path: CHANGELOG.md
+          body_path: release-notes.md
           files: jars/*.jar
+
+  modrinth:
+    name: Modrinth ${{ matrix.mc }}
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        mc: ['26.2', '26.3']
+    env:
+      MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
+      MODRINTH_PROJECT: ${{ vars.MODRINTH_PROJECT }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          name: enchant-planner-${{ matrix.mc }}
+          path: jars
+      - name: Upload to Modrinth
+        run: |
+          if [ -z "$MODRINTH_TOKEN" ] || [ -z "$MODRINTH_PROJECT" ]; then
+            echo "::notice::Skipping Modrinth: set the MODRINTH_TOKEN secret and MODRINTH_PROJECT variable to publish there."
+            exit 0
+          fi
+          version="${GITHUB_REF_NAME#v}"
+          .github/scripts/modrinth-upload.sh "$version" "${{ matrix.mc }}" "jars/enchant-planner-$version+${{ matrix.mc }}.jar"

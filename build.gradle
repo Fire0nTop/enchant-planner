@@ -40,6 +40,14 @@ java {
 	targetCompatibility = JavaVersion.VERSION_25
 }
 
+// Ship both licenses inside the jar (MIT requires the notice to travel with the code).
+jar {
+	from("LICENSE") {
+		rename { "LICENSE_enchant-planner.txt" }
+	}
+	from("LICENSE-enchant-order.txt")
+}
+
 test {
 	useJUnitPlatform()
 }
