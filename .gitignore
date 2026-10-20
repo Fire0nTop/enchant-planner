@@ -40,4 +40,4 @@ replay_*.log
 *.jfr
 
 # local logs
-runcl*.log
+*.log
