@@ -27,7 +27,9 @@ The Modrinth step is skipped (with a notice) until the setup below is done.
 
 ## Releasing a new version
 
-1. Bump `mod_version` in `gradle.properties`.
+1. Bump `mod_version` in `gradle.properties`. `release_type` in the same file sets the channel:
+   `alpha` (current), `beta` or `release`. Alpha and beta versions are uploaded to that Modrinth
+   channel and marked as *Pre-release* on GitHub.
 2. Add a `## <version>` section at the top of `CHANGELOG.md` (the release fails without one).
 3. Commit, push, then tag and push the tag. The tag must match `mod_version`:
 

@@ -42,6 +42,7 @@ jq -n \
 	--arg name "Enchant Planner $mod_version for $mc" \
 	--arg number "$mod_version+$mc" \
 	--arg mc "$mc" \
+	--arg type "$(.github/scripts/release-type.sh)" \
 	--rawfile changelog <(.github/scripts/release-notes.sh "$mod_version") \
 	'{
 		project_id: $project,
@@ -50,7 +51,7 @@ jq -n \
 		changelog: $changelog,
 		game_versions: [$mc],
 		loaders: ["fabric"],
-		version_type: "release",
+		version_type: $type,
 		featured: true,
 		dependencies: [{project_id: "P7dR8mSH", dependency_type: "required"}],
 		file_parts: ["file"],

@@ -48,17 +48,25 @@ jobs:
           path: jars
           merge-multiple: true
       - name: Release notes
+        id: notes
         run: |
+          type=$(.github/scripts/release-type.sh)
           {
+            if [ "$type" != release ]; then
+              echo "**This is an $type version**: it works, but expect rough edges. Please report problems in the issues."
+              echo
+            fi
             echo 'Download the jar for your Minecraft version: `+26.2` or `+26.3`. Needs Fabric Loader 0.19.5+ and Fabric API.'
             echo
             .github/scripts/release-notes.sh "${GITHUB_REF_NAME#v}"
           } > release-notes.md
+          echo "prerelease=$([ "$type" = release ] && echo false || echo true)" >> "$GITHUB_OUTPUT"
       - uses: softprops/action-gh-release@v2
         with:
           name: Enchant Planner ${{ github.ref_name }}
           body_path: release-notes.md
           files: jars/*.jar
+          prerelease: ${{ steps.notes.outputs.prerelease }}
 
   modrinth:
     name: Modrinth ${{ matrix.mc }}

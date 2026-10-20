@@ -14,6 +14,9 @@ The search is a Java port of the well-known web tool
 - Reads enchantments from the game itself, so datapack and modded enchantments are supported.
 - English and German translations.
 
+> **Alpha:** the mod works, but it's early and may still have rough edges. Please report problems
+> in the [issues](https://github.com/Fire0nTop/enchant-planner/issues).
+
 ## Requirements
 
 | Minecraft | Mod jar | Fabric API | Fabric Loader | Java |
