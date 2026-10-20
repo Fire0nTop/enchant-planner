@@ -1,3 +1,5 @@
+<img src="docs/icon.png" alt="Enchant Planner icon" width="128" align="right">
+
 # Enchant Planner
 
 A client-side Fabric mod for Minecraft **26.2** and **26.3** that shows the cheapest order to combine

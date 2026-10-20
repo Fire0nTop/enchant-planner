@@ -4,6 +4,7 @@
 
 - The license texts (this mod's and iamcal/enchant-order's) are now included in the jar.
 - Releases are also published to Modrinth automatically.
+- New pixel-art mod icon.
 
 ## 1.0.0
 

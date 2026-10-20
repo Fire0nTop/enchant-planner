@@ -12,6 +12,7 @@
 		"issues": "https://github.com/Fire0nTop/enchant-planner/issues"
 	},
 	"license": "MIT",
+	"icon": "assets/enchant_planner/icon.png",
 	"environment": "client",
 	"entrypoints": {
 		"client": ["com.enchantplanner.EnchantPlannerClient"]

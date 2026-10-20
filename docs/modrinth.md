@@ -13,8 +13,8 @@ The Modrinth step is skipped (with a notice) until the setup below is done.
 
 1. **Create the project** on [modrinth.com](https://modrinth.com/dashboard/projects): type *Mod*,
    name *Enchant Planner*, slug e.g. `enchant-planner`. Fill in the page using the text below,
-   set the license to **MIT**, client side **Required**, server side **Unsupported**, and add an
-   icon. Modrinth reviews new projects before they go public; you can submit for review once the
+   upload `docs/icon.png` as the icon, and set the license to **MIT**, client side **Required**,
+   server side **Unsupported**. Modrinth reviews new projects before they go public; you can submit for review once the
    first version is uploaded.
 2. **Create a personal access token** at
    [modrinth.com/settings/pats](https://modrinth.com/settings/pats) with only the
