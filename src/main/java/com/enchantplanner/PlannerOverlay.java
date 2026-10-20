@@ -1,6 +1,7 @@
 package com.enchantplanner;
 
 import com.enchantplanner.solver.EnchantSolver;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -577,13 +578,13 @@ public final class PlannerOverlay {
 	// ---------------------------------------------------------------- input
 
 	public boolean mouseClicked(double mx, double my, int button) {
-		if (toggle == null || button != 0 && !(PlannerState.visible && (setup.contains(mx, my) || order.contains(mx, my)))) {
+		if (toggle == null || button != InputConstants.MOUSE_BUTTON_LEFT && !(PlannerState.visible && (setup.contains(mx, my) || order.contains(mx, my)))) {
 			return false;
 		}
 		for (int i = hotspots.size() - 1; i >= 0; i--) {
 			Hotspot h = hotspots.get(i);
 			if (h.rect().contains(mx, my)) {
-				if (button == 0) {
+				if (button == InputConstants.MOUSE_BUTTON_LEFT) { // 0 on 26.2 (GLFW), 1 on 26.3 (SDL)
 					h.action().run();
 					if (!isPanelBackground(h)) {
 						click();

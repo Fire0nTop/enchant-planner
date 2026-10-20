@@ -1,0 +1,13 @@
+{
+	"schemaVersion": 1,
+	"id": "enchant_planner_test",
+	"version": "1.0.0",
+	"name": "Enchant Planner client game test",
+	"environment": "client",
+	"entrypoints": {
+		"fabric-client-gametest": ["com.enchantplanner.test.AnvilPlannerGameTest"]
+	},
+	"depends": {
+		"enchant_planner": "*"
+	}
+}

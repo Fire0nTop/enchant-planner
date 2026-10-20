@@ -43,3 +43,15 @@ java {
 test {
 	useJUnitPlatform()
 }
+
+// Client game test: opens an anvil in a fresh world, clicks the planner button and takes
+// screenshots. Run with ./gradlew runClientGameTest [-Pmc=26.3]
+fabricApi {
+	configureTests {
+		createSourceSet = true
+		modId = "enchant_planner_test"
+		enableGameTests = false
+		enableClientGameTests = true
+		eula = true
+	}
+}

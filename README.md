@@ -88,6 +88,15 @@ Fabric API versions) are in `versions/<mc>.properties`.
 
 starts a development client with the mod installed.
 
+```bash
+./gradlew runClientGameTest -Pmc=26.3
+```
+
+runs the in-game test (`src/gametest`): it creates a world, opens an anvil, clicks the planner
+button at 16 window-size / GUI-scale combinations, computes an order for a sword and saves
+screenshots to `build/run/clientGameTest/screenshots`. It opens a game window, so it isn't part
+of CI.
+
 ### Releases
 
 GitHub Actions builds and tests both versions on every push. Pushing a tag such as `v1.0.1`
