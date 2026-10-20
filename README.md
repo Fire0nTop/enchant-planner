@@ -1,6 +1,6 @@
 # Enchant Planner
 
-A client-side Fabric mod for Minecraft **26.2** that shows the cheapest order to combine
+A client-side Fabric mod for Minecraft **26.2** and **26.3** that shows the cheapest order to combine
 enchantment books, right next to the vanilla anvil.
 
 Pick the item and the enchantments you want; the mod works out which book goes on what, in which
@@ -14,19 +14,18 @@ The search is a Java port of the well-known web tool
 
 ## Requirements
 
-| | Version |
-|---|---|
-| Minecraft | 26.2 |
-| Fabric Loader | 0.19.5 or newer |
-| Fabric API | 0.161.0+26.2 or newer |
-| Java | 25 |
+| Minecraft | Mod jar | Fabric API | Fabric Loader | Java |
+|---|---|---|---|---|
+| 26.2 | `enchant-planner-<version>+26.2.jar` | 0.161.0+26.2 or newer | 0.19.5+ | 25 |
+| 26.3 | `enchant-planner-<version>+26.3.jar` | 0.164.0+26.3 or newer | 0.19.5+ | 25 |
 
 ## Installation
 
-1. Install [Fabric Loader](https://fabricmc.net/use/) for Minecraft 26.2.
-2. Download [Fabric API](https://modrinth.com/mod/fabric-api) for 26.2.
-3. Put `enchant-planner-<version>.jar` (from the releases page, or built yourself, see below)
-   and Fabric API into your `.minecraft/mods` folder.
+1. Install [Fabric Loader](https://fabricmc.net/use/) for your Minecraft version.
+2. Download [Fabric API](https://modrinth.com/mod/fabric-api) for the same version.
+3. Download the matching jar from the
+   [releases page](https://github.com/Fire0nTop/enchant-planner/releases) and put it, together with
+   Fabric API, into your `.minecraft/mods` folder.
 
 ## Usage
 
@@ -69,18 +68,40 @@ See [docs/how-it-works.md](docs/how-it-works.md) for the anvil maths and the sea
 
 ## Building from source
 
+One codebase builds both Minecraft versions. The default is 26.2; pass `-Pmc=26.3` for 26.3:
+
 ```bash
 ./gradlew build
 ```
 
-The jar ends up in `build/libs/`. The build also runs the solver tests, which compare the Java
-solver with 397 cases produced by the original `work.js`.
+```bash
+./gradlew build -Pmc=26.3
+```
+
+The jars end up in `build/libs/`. The build also runs the solver tests, which compare the Java
+solver with 397 cases produced by the original `work.js`. Per-version settings (Minecraft and
+Fabric API versions) are in `versions/<mc>.properties`.
 
 ```bash
-./gradlew runClient
+./gradlew runClient -Pmc=26.3
 ```
 
 starts a development client with the mod installed.
+
+### Releases
+
+GitHub Actions builds and tests both versions on every push. Pushing a tag such as `v1.0.1`
+also creates a GitHub release with both jars attached, using `CHANGELOG.md` as the description:
+
+```bash
+git tag v1.0.1
+```
+
+```bash
+git push origin v1.0.1
+```
+
+Bump `mod_version` in `gradle.properties` and add a `CHANGELOG.md` entry before tagging.
 
 ## Credits and license
 

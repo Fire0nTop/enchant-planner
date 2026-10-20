@@ -2,6 +2,13 @@ plugins {
 	id 'net.fabricmc.fabric-loom' version "${loom_version}"
 }
 
+// Per-Minecraft-version settings live in versions/<mc>.properties; pick one with -Pmc=<version>.
+def mcProps = new Properties()
+file("versions/${project.mc}.properties").withInputStream { mcProps.load(it) }
+mcProps.each { k, v -> project.ext.set(k, v) }
+
+version = "${project.mod_version}+${project.mc}"
+
 base {
 	archivesName = 'enchant-planner'
 }
@@ -16,11 +23,11 @@ dependencies {
 }
 
 processResources {
-	def version = project.version
-	inputs.property "version", version
+	def props = [version: project.version, minecraft_dependency: project.minecraft_dependency]
+	inputs.properties props
 
 	filesMatching("fabric.mod.json") {
-		expand "version": version
+		expand props
 	}
 }
 
