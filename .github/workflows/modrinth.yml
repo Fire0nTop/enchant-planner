@@ -1,0 +1,36 @@
+name: Publish to Modrinth
+
+# Manually (re)publish an existing GitHub release's jars to Modrinth,
+# e.g. after fixing the token. Actions → Publish to Modrinth → Run workflow.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to publish, e.g. v1.0.1'
+        required: true
+
+jobs:
+  modrinth:
+    name: Modrinth ${{ matrix.mc }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        mc: ['26.2', '26.3']
+    env:
+      MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
+      MODRINTH_PROJECT: ${{ vars.MODRINTH_PROJECT }}
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Download the release jar
+        run: gh release download "$TAG" --pattern "enchant-planner-${TAG#v}+${{ matrix.mc }}.jar" --dir jars
+      - name: Upload to Modrinth
+        run: |
+          if [ -z "$MODRINTH_TOKEN" ] || [ -z "$MODRINTH_PROJECT" ]; then
+            echo "::error::Set the MODRINTH_TOKEN secret and MODRINTH_PROJECT variable first."
+            exit 1
+          fi
+          version="${TAG#v}"
+          .github/scripts/modrinth-upload.sh "$version" "${{ matrix.mc }}" "jars/enchant-planner-$version+${{ matrix.mc }}.jar"

@@ -12,10 +12,29 @@ agent="Fire0nTop/enchant-planner (GitHub Actions)"
 # MODRINTH_DRY_RUN=1 prints the request instead of sending it (used by CI on every push)
 dry_run="${MODRINTH_DRY_RUN:-0}"
 
+# request <out file> <curl args...>: prints Modrinth's error and fails on any HTTP error
+request() {
+	local out="$1"
+	shift
+	local status
+	status=$(curl -sS -o "$out" -w '%{http_code}' -H "User-Agent: $agent" "$@")
+	if [ "$status" -ge 400 ]; then
+		echo "::error::Modrinth answered HTTP $status: $(cat "$out")"
+		return 1
+	fi
+}
+
 if [ "$dry_run" = 1 ]; then
 	project_id=DRYRUN
+elif [[ "$MODRINTH_PROJECT" =~ ^[A-Za-z0-9]{8}$ ]]; then
+	project_id="$MODRINTH_PROJECT" # already an id
 else
-	project_id=$(curl -sS --fail-with-body -H "User-Agent: $agent" "$api/project/$MODRINTH_PROJECT" | jq -r .id)
+	# a slug: look up the id (with the token, since the project may not be public yet)
+	if ! request project.json -H "Authorization: $MODRINTH_TOKEN" "$api/project/$MODRINTH_PROJECT"; then
+		echo "::error::Could not find Modrinth project '$MODRINTH_PROJECT'. While the project is not public, set the MODRINTH_PROJECT variable to the project ID (project page → ⋯ → Copy ID) or give the token the 'Read projects' scope."
+		exit 1
+	fi
+	project_id=$(jq -r .id project.json)
 fi
 
 jq -n \
@@ -44,9 +63,8 @@ if [ "$dry_run" = 1 ]; then
 	exit 0
 fi
 
-curl -sS --fail-with-body -X POST "$api/version" \
+request version.json -X POST "$api/version" \
 	-H "Authorization: $MODRINTH_TOKEN" \
-	-H "User-Agent: $agent" \
 	-F "data=<modrinth-version.json;type=application/json" \
-	-F "file=@$jar;type=application/java-archive" \
-	| jq -r '"Published \(.version_number): https://modrinth.com/mod/\(.project_id)/version/\(.id)"'
+	-F "file=@$jar;type=application/java-archive"
+jq -r '"Published \(.version_number): https://modrinth.com/mod/\(.project_id)/version/\(.id)"' version.json
