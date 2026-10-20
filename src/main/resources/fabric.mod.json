@@ -1,0 +1,23 @@
+{
+	"schemaVersion": 1,
+	"id": "enchant_planner",
+	"version": "${version}",
+	"name": "Enchant Planner",
+	"description": "Shows the cheapest order to combine enchantment books right next to the anvil. Client-side only.",
+	"authors": ["Fire"],
+	"contributors": ["Algorithm ported from iamcal/enchant-order (MIT)"],
+	"contact": {
+		"sources": "https://github.com/iamcal/enchant-order"
+	},
+	"license": "MIT",
+	"environment": "client",
+	"entrypoints": {
+		"client": ["com.enchantplanner.EnchantPlannerClient"]
+	},
+	"depends": {
+		"fabricloader": ">=0.19.5",
+		"minecraft": "~26.2",
+		"java": ">=25",
+		"fabric-api": "*"
+	}
+}
