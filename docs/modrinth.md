@@ -21,8 +21,9 @@ The Modrinth step is skipped (with a notice) until the setup below is done.
    **Create versions** scope. Copy it; Modrinth shows it once.
 3. **Add it to GitHub:** in the repository go to *Settings → Secrets and variables → Actions*.
    - *Secrets* tab → **New repository secret**: name `MODRINTH_TOKEN`, value = the token.
-   - *Variables* tab → **New repository variable**: name `MODRINTH_PROJECT`, value = the project
-     slug (e.g. `enchant-planner`) or its id.
+   - *Variables* tab → **New repository variable**: name `MODRINTH_PROJECT`, value = the
+     project ID (project page → ⋯ → **Copy ID**). The slug (e.g. `enchant-planner`) works too
+     once the project is public, or earlier if the token also has the **Read projects** scope.
 
 ## Releasing a new version
 
@@ -38,8 +39,9 @@ git tag v1.0.1
 git push origin v1.0.1
 ```
 
-If a Modrinth upload fails (for example the token expired), fix the cause and use
-*Re-run failed jobs* on the workflow run; the GitHub release is not created twice.
+If a Modrinth upload fails (for example the token expired), the job log shows Modrinth's error.
+Fix the cause, then open *Actions → Publish to Modrinth → Run workflow* and enter the tag (e.g.
+`v1.0.1`). It uploads that GitHub release's jars using the current scripts.
 
 ## Suggested project description
 
