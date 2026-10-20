@@ -24,6 +24,8 @@ The search is a Java port of the well-known web tool
 | 26.2 | `enchant-planner-<version>+26.2.jar` | 0.161.0+26.2 or newer | 0.19.5+ | 25 |
 | 26.3 | `enchant-planner-<version>+26.3.jar` | 0.164.0+26.3 or newer | 0.19.5+ | 25 |
 
+[Mod Menu](https://modrinth.com/mod/modmenu) is optional; with it you get a settings screen.
+
 ## Installation
 
 1. Install [Fabric Loader](https://fabricmc.net/use/) for your Minecraft version.
@@ -36,6 +38,18 @@ The search is a Java port of the well-known web tool
 
 Open any anvil. The planner starts hidden; click the **enchanted book button** above the anvil to
 show or hide it.
+
+### Settings
+
+In Mod Menu, select Enchant Planner and click the settings button. **Planner on anvil open**
+chooses how the planner starts when you open an anvil:
+
+- **Closed** (default): hidden until you click the book button.
+- **Open**: shown every time.
+- **Remember**: the way you left it last time, even after restarting the game.
+
+Settings are stored in `.minecraft/config/enchant_planner.json`, so you can also edit them
+without Mod Menu (`startState`: `CLOSED`, `OPEN` or `REMEMBER`).
 
 ### Left panel: what you want
 

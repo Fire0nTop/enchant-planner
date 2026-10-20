@@ -173,7 +173,7 @@ public final class PlannerOverlay {
 		} else {
 			g.item(bookIcon, ix, iy);
 		}
-		hotspots.add(new Hotspot(toggle, () -> PlannerState.visible = !PlannerState.visible));
+		hotspots.add(new Hotspot(toggle, PlannerState::toggleVisible));
 		if (hover) {
 			g.setTooltipForNextFrame(font, Component.translatable("enchant_planner.toggle"), mx, my);
 		}

@@ -15,12 +15,16 @@
 	"icon": "assets/enchant_planner/icon.png",
 	"environment": "client",
 	"entrypoints": {
-		"client": ["com.enchantplanner.EnchantPlannerClient"]
+		"client": ["com.enchantplanner.EnchantPlannerClient"],
+		"modmenu": ["com.enchantplanner.ModMenuIntegration"]
 	},
 	"depends": {
 		"fabricloader": ">=0.19.5",
 		"minecraft": "${minecraft_dependency}",
 		"java": ">=25",
 		"fabric-api": "*"
+	},
+	"suggests": {
+		"modmenu": "*"
 	}
 }

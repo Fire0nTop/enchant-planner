@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.0
+
+- Settings screen in Mod Menu (optional): choose whether the planner starts closed, open, or
+  the way you left it when you open an anvil. Stored in `config/enchant_planner.json`.
+
 ## 1.0.1
 
 - The license texts (this mod's and iamcal/enchant-order's) are now included in the jar.

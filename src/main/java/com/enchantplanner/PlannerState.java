@@ -51,6 +51,16 @@ public final class PlannerState {
 	private PlannerState() {
 	}
 
+	/** The book button: show or hide the panels, remembered for {@link PlannerConfig.StartState#REMEMBER}. */
+	public static void toggleVisible() {
+		visible = !visible;
+		PlannerConfig config = PlannerConfig.get();
+		if (config.lastVisible != visible) {
+			config.lastVisible = visible;
+			PlannerConfig.save();
+		}
+	}
+
 	public static Item target() {
 		return target;
 	}

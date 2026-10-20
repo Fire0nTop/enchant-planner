@@ -32,5 +32,13 @@
 	"enchant_planner.type.fishing": "Fishing",
 	"enchant_planner.type.other": "Other",
 	"enchant_planner.type.general": "General",
-	"enchant_planner.type.curse": "Curses"
+	"enchant_planner.type.curse": "Curses",
+	"enchant_planner.config.title": "Enchant Planner Settings",
+	"enchant_planner.config.start_state": "Planner on anvil open",
+	"enchant_planner.config.start_state.closed": "Closed",
+	"enchant_planner.config.start_state.open": "Open",
+	"enchant_planner.config.start_state.remember": "Remember",
+	"enchant_planner.config.start_state.closed.tip": "The planner starts hidden; click the book button to show it.",
+	"enchant_planner.config.start_state.open.tip": "The planner is shown every time you open an anvil.",
+	"enchant_planner.config.start_state.remember.tip": "The planner opens the way you left it last time, even after restarting the game."
 }
