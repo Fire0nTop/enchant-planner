@@ -7,7 +7,9 @@
 	"authors": ["Fire"],
 	"contributors": ["Algorithm ported from iamcal/enchant-order (MIT)"],
 	"contact": {
-		"sources": "https://github.com/iamcal/enchant-order"
+		"homepage": "https://github.com/Fire0nTop/enchant-planner",
+		"sources": "https://github.com/Fire0nTop/enchant-planner",
+		"issues": "https://github.com/Fire0nTop/enchant-planner/issues"
 	},
 	"license": "MIT",
 	"environment": "client",
