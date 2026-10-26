@@ -1,6 +1,7 @@
 package com.enchantplanner.test;
 
 import com.enchantplanner.EnchantCatalog;
+import com.enchantplanner.ItemType;
 import com.enchantplanner.PlannerConfig;
 import com.enchantplanner.PlannerConfigScreen;
 import com.enchantplanner.PlannerState;
@@ -14,6 +15,9 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContex
 import net.minecraft.client.gui.screens.inventory.AnvilScreen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.world.level.block.state.BlockState;
@@ -39,6 +43,22 @@ public class AnvilPlannerGameTest implements FabricClientGameTest {
 			player.level().setBlockAndUpdate(pos, anvil);
 			player.openMenu(anvil.getMenuProvider(player.level(), pos));
 		});
+	}
+
+	private static void putInAnvil(TestSingleplayerContext world, Item item) {
+		world.getServer().runOnServer(server -> {
+			ServerPlayer player = server.getPlayerList().getPlayers().getFirst();
+			player.containerMenu.getSlot(0).set(item == Items.AIR ? ItemStack.EMPTY : new ItemStack(item));
+			player.containerMenu.broadcastChanges();
+		});
+	}
+
+	private static void expectHelmet(ClientGameTestContext ctx, String when, int typeCount) {
+		String state = ctx.computeOnClient(mc -> PlannerState.target().id() + ", " + ItemType.all().size()
+				+ " types, " + PlannerState.selectedCount() + " selected");
+		if (!state.equals("helmet, " + typeCount + " types, 1 selected")) {
+			throw new AssertionError(when + ": expected the Helmet type with its selection, got " + state);
+		}
 	}
 
 	@Override
@@ -105,7 +125,7 @@ public class AnvilPlannerGameTest implements FabricClientGameTest {
 			ctx.runOnClient(mc -> {
 				mc.options.guiScale().set(0);
 				PlannerState.visible = true;
-				PlannerState.setTarget(net.minecraft.world.item.Items.NETHERITE_SWORD);
+				PlannerState.setTarget(ItemType.of(new ItemStack(Items.NETHERITE_SWORD)));
 				PlannerState.clear();
 				List<EnchantCatalog.Entry> picked = new ArrayList<>();
 				for (EnchantCatalog.Entry e : PlannerState.catalog().entries()) {
@@ -124,6 +144,24 @@ public class AnvilPlannerGameTest implements FabricClientGameTest {
 			}
 			System.out.printf("[planner-test] sword: %d enchantments, %d steps, %d levels%n",
 					PlannerState.selectedCount(), result.steps().size(), result.totalLevels());
+
+			// item types: every helmet material selects the one "Helmet" entry, and taking the
+			// helmet out of the anvil neither adds nor removes entries
+			int typeCount = ctx.computeOnClient(mc -> ItemType.all().size());
+			putInAnvil(world, Items.IRON_HELMET);
+			ctx.waitTicks(5);
+			ctx.runOnClient(mc -> PlannerState.setLevel(PlannerState.catalog().entries().getFirst(), 1));
+			ctx.waitTicks(3);
+			ctx.takeScreenshot("planner_iron_helmet");
+			expectHelmet(ctx, "iron helmet in the anvil", typeCount);
+			putInAnvil(world, Items.AIR);
+			ctx.waitTicks(5);
+			expectHelmet(ctx, "helmet taken out", typeCount);
+			putInAnvil(world, Items.DIAMOND_HELMET);
+			ctx.waitTicks(5);
+			expectHelmet(ctx, "diamond helmet in the anvil", typeCount);
+			putInAnvil(world, Items.AIR);
+			System.out.println("[planner-test] helmets: one Helmet entry, selection kept across materials");
 
 			// settings: Mod Menu offers our screen; clicking the option once switches Closed -> Open
 			boolean hasModMenuEntry = FabricLoader.getInstance().getEntrypointContainers("modmenu", ModMenuApi.class)

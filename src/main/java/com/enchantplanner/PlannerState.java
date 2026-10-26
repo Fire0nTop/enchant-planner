@@ -2,8 +2,6 @@ package com.enchantplanner;
 
 import com.enchantplanner.solver.EnchantSolver;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.world.item.Item;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.item.enchantment.Enchantment;
 
 import java.util.ArrayList;
@@ -29,9 +27,10 @@ public final class PlannerState {
 	public static boolean visible = false;
 	public static EnchantSolver.Mode mode = EnchantSolver.Mode.LEVELS;
 
-	private static Item target = Items.NETHERITE_SWORD;
-	private static final Map<Item, LinkedHashMap<ResourceKey<Enchantment>, Integer>> selections = new HashMap<>();
+	private static ItemType target; // lazily the default type, once registries are bound
+	private static final Map<ItemType, LinkedHashMap<ResourceKey<Enchantment>, Integer>> selections = new HashMap<>();
 	private static EnchantCatalog catalog;
+	private static ItemType catalogType;
 
 	/** Ordered list of catalog entries passed to the solver; solver ids index into it. */
 	private static List<EnchantCatalog.Entry> solvedEntries = List.of();
@@ -61,13 +60,17 @@ public final class PlannerState {
 		}
 	}
 
-	public static Item target() {
+	public static ItemType target() {
+		if (target == null) {
+			target = ItemType.defaultType();
+		}
 		return target;
 	}
 
 	public static EnchantCatalog catalog() {
-		if (catalog == null || catalog.target() != target) {
-			catalog = EnchantCatalog.forItem(target);
+		if (catalog == null || !target().equals(catalogType)) {
+			catalogType = target();
+			catalog = EnchantCatalog.forItem(catalogType.probe());
 			recompute();
 		}
 		return catalog;
@@ -78,18 +81,15 @@ public final class PlannerState {
 		catalog = null;
 	}
 
-	public static void setTarget(Item item) {
-		if (item == Items.ENCHANTED_BOOK) {
-			item = Items.BOOK;
-		}
-		if (item != target) {
-			target = item;
+	public static void setTarget(ItemType type) {
+		if (!type.equals(target())) {
+			target = type;
 			catalog();
 		}
 	}
 
 	public static LinkedHashMap<ResourceKey<Enchantment>, Integer> selection() {
-		return selections.computeIfAbsent(target, k -> new LinkedHashMap<>());
+		return selections.computeIfAbsent(target(), k -> new LinkedHashMap<>());
 	}
 
 	public static int level(EnchantCatalog.Entry e) {
@@ -168,7 +168,7 @@ public final class PlannerState {
 			computing = false;
 			return;
 		}
-		boolean bookTarget = EnchantCatalog.isBook(cat.target());
+		boolean bookTarget = catalogType.isBook();
 		EnchantSolver.Mode m = mode;
 		computing = true;
 		EXECUTOR.submit(() -> {

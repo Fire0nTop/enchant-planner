@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.1
+
+- Items are grouped by type through item tags: every helmet, sword, pickaxe and so on shares one
+  entry (Helmet, Sword, ...) and one enchantment selection, whatever its material.
+- Fixed: putting an item that wasn't in the list (e.g. an iron helmet) into the anvil added a
+  separate entry that went away again when the item was taken out.
+
 ## 1.1.0
 
 - Settings screen in Mod Menu (optional): choose whether the planner starts closed, open, or

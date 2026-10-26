@@ -40,5 +40,15 @@
 	"enchant_planner.config.start_state.remember": "Remember",
 	"enchant_planner.config.start_state.closed.tip": "The planner starts hidden; click the book button to show it.",
 	"enchant_planner.config.start_state.open.tip": "The planner is shown every time you open an anvil.",
-	"enchant_planner.config.start_state.remember.tip": "The planner opens the way you left it last time, even after restarting the game."
+	"enchant_planner.config.start_state.remember.tip": "The planner opens the way you left it last time, even after restarting the game.",
+	"enchant_planner.item_type.helmet": "Helmet",
+	"enchant_planner.item_type.chestplate": "Chestplate",
+	"enchant_planner.item_type.leggings": "Leggings",
+	"enchant_planner.item_type.boots": "Boots",
+	"enchant_planner.item_type.sword": "Sword",
+	"enchant_planner.item_type.axe": "Axe",
+	"enchant_planner.item_type.spear": "Spear",
+	"enchant_planner.item_type.pickaxe": "Pickaxe",
+	"enchant_planner.item_type.shovel": "Shovel",
+	"enchant_planner.item_type.hoe": "Hoe"
 }

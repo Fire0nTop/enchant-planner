@@ -40,5 +40,15 @@
 	"enchant_planner.config.start_state.remember": "Merken",
 	"enchant_planner.config.start_state.closed.tip": "Der Planer startet ausgeblendet; klicke auf den Buch-Knopf, um ihn zu zeigen.",
 	"enchant_planner.config.start_state.open.tip": "Der Planer wird jedes Mal angezeigt, wenn du einen Amboss öffnest.",
-	"enchant_planner.config.start_state.remember.tip": "Der Planer öffnet sich so, wie du ihn zuletzt verlassen hast, auch nach einem Neustart."
+	"enchant_planner.config.start_state.remember.tip": "Der Planer öffnet sich so, wie du ihn zuletzt verlassen hast, auch nach einem Neustart.",
+	"enchant_planner.item_type.helmet": "Helm",
+	"enchant_planner.item_type.chestplate": "Brustpanzer",
+	"enchant_planner.item_type.leggings": "Beinschutz",
+	"enchant_planner.item_type.boots": "Stiefel",
+	"enchant_planner.item_type.sword": "Schwert",
+	"enchant_planner.item_type.axe": "Axt",
+	"enchant_planner.item_type.spear": "Speer",
+	"enchant_planner.item_type.pickaxe": "Spitzhacke",
+	"enchant_planner.item_type.shovel": "Schaufel",
+	"enchant_planner.item_type.hoe": "Hacke"
 }

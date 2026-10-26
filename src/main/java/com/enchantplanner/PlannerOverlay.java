@@ -54,14 +54,6 @@ public final class PlannerOverlay {
 	private static final Identifier BUTTON = Identifier.withDefaultNamespace("widget/button");
 	private static final Identifier BUTTON_HOVER = Identifier.withDefaultNamespace("widget/button_highlighted");
 
-	private static final Item[] DEFAULT_TARGETS = {
-			Items.NETHERITE_HELMET, Items.NETHERITE_CHESTPLATE, Items.NETHERITE_LEGGINGS, Items.NETHERITE_BOOTS,
-			Items.TURTLE_HELMET, Items.ELYTRA, Items.NETHERITE_SWORD, Items.NETHERITE_AXE, Items.MACE,
-			Items.NETHERITE_SPEAR, Items.TRIDENT, Items.BOW, Items.CROSSBOW, Items.NETHERITE_PICKAXE,
-			Items.NETHERITE_SHOVEL, Items.NETHERITE_HOE, Items.SHIELD, Items.BRUSH, Items.FISHING_ROD,
-			Items.SHEARS, Items.FLINT_AND_STEEL, Items.CARROT_ON_A_STICK, Items.WARPED_FUNGUS_ON_A_STICK,
-			Items.CARVED_PUMPKIN, Items.BOOK
-	};
 
 	private record Rect(int x, int y, int w, int h) {
 		int right() {
@@ -187,23 +179,23 @@ public final class PlannerOverlay {
 		hotspots.add(new Hotspot(r, () -> {}));
 		g.text(font, Component.translatable("enchant_planner.title"), r.x() + PAD + 1, r.y() + 6, TEXT_DARK, false);
 
-		// item selector: < [icon name] >
-		List<ItemStack> targets = targets();
-		int idx = indexOfTarget(targets);
+		// item type selector: < [icon name] >
+		List<ItemType> types = ItemType.all();
+		int idx = Math.max(0, types.indexOf(PlannerState.target()));
 		int y = r.y() + 17;
 		Rect prev = new Rect(r.x() + PAD, y + 2, 11, 16);
 		Rect next = new Rect(r.right() - PAD - 11, y + 2, 11, 16);
 		Rect item = new Rect(prev.right() + 2, y, next.x() - prev.right() - 4, 20);
-		textButton(g, prev, "<", mx, my, () -> selectTarget(targets.get(Math.floorMod(idx - 1, targets.size())).getItem()));
-		textButton(g, next, ">", mx, my, () -> selectTarget(targets.get(Math.floorMod(idx + 1, targets.size())).getItem()));
+		textButton(g, prev, "<", mx, my, () -> selectTarget(types.get(Math.floorMod(idx - 1, types.size()))));
+		textButton(g, next, ">", mx, my, () -> selectTarget(types.get(Math.floorMod(idx + 1, types.size()))));
 		inset(g, item);
 		if (item.contains(mx, my)) {
 			g.fill(item.x() + 1, item.y() + 1, item.right() - 1, item.bottom() - 1, 0x30FFFFFF);
 			g.setTooltipForNextFrame(font, Component.translatable("enchant_planner.choose_item"), mx, my);
 		}
-		ItemStack current = targets.get(idx);
-		g.item(current, item.x() + 2, item.y() + 2);
-		g.text(font, ellipsize(current.getHoverName().getString(), item.w() - 22), item.x() + 20, item.y() + 6, TEXT_LIGHT, true);
+		ItemType current = types.get(idx);
+		g.item(targetIcon(), item.x() + 2, item.y() + 2);
+		g.text(font, ellipsize(current.name().getString(), item.w() - 22), item.x() + 20, item.y() + 6, TEXT_LIGHT, true);
 		hotspots.add(new Hotspot(item, () -> pickingItem = !pickingItem));
 
 		// bottom buttons
@@ -222,37 +214,37 @@ public final class PlannerOverlay {
 		setupList = new Rect(r.x() + PAD, item.bottom() + 4, bw, by - 3 - item.bottom() - 4);
 		inset(g, setupList);
 		if (pickingItem) {
-			extractItemGrid(g, targets, mx, my);
+			extractItemGrid(g, types, mx, my);
 		} else {
 			extractEnchantList(g, mx, my);
 		}
 	}
 
-	private void extractItemGrid(GuiGraphicsExtractor g, List<ItemStack> targets, int mx, int my) {
+	private void extractItemGrid(GuiGraphicsExtractor g, List<ItemType> types, int mx, int my) {
 		Rect area = inner(setupList);
 		int cols = Math.max(1, area.w() / CELL);
-		int rows = (targets.size() + cols - 1) / cols;
+		int rows = (types.size() + cols - 1) / cols;
 		int x0 = area.x() + (area.w() - cols * CELL) / 2;
 		gridScroll = Mth.clamp(gridScroll, 0, Math.max(0, rows * CELL - area.h()));
 
 		g.enableScissor(area.x(), area.y(), area.right(), area.bottom());
-		for (int i = 0; i < targets.size(); i++) {
-			ItemStack s = targets.get(i);
+		for (int i = 0; i < types.size(); i++) {
+			ItemType t = types.get(i);
 			Rect cell = new Rect(x0 + (i % cols) * CELL, area.y() + (i / cols) * CELL - gridScroll, CELL, CELL);
 			if (cell.bottom() < area.y() || cell.y() > area.bottom()) {
 				continue;
 			}
 			boolean hover = area.contains(mx, my) && cell.contains(mx, my);
-			if (s.getItem() == PlannerState.target()) {
+			if (t.equals(PlannerState.target())) {
 				g.fill(cell.x(), cell.y(), cell.right(), cell.bottom(), 0x80FFE070);
 			} else if (hover) {
 				g.fill(cell.x(), cell.y(), cell.right(), cell.bottom(), 0x50FFFFFF);
 			}
-			g.item(s, cell.x() + 1, cell.y() + 1);
+			g.item(t.icon(), cell.x() + 1, cell.y() + 1);
 			if (hover) {
-				g.setTooltipForNextFrame(font, s.getHoverName(), mx, my);
+				g.setTooltipForNextFrame(font, t.name(), mx, my);
 				hotspots.add(new Hotspot(cell, () -> {
-					selectTarget(s.getItem());
+					selectTarget(t);
 					pickingItem = false;
 				}));
 			}
@@ -527,7 +519,8 @@ public final class PlannerOverlay {
 
 	private Component describe(EnchantSolver.Piece p) {
 		if (p.isTarget()) {
-			return new ItemStack(PlannerState.target()).getHoverName();
+			ItemStack s = targetIcon();
+			return PlannerState.target().contains(anvilItem(0)) ? s.getItem().getName(s) : PlannerState.target().name();
 		}
 		List<EnchantCatalog.Entry> entries = PlannerState.solvedEntries();
 		List<Integer> levels = PlannerState.solvedLevels();
@@ -547,8 +540,14 @@ public final class PlannerOverlay {
 		if (!p.isTarget()) {
 			return bookIcon;
 		}
-		ItemStack s = new ItemStack(PlannerState.target());
+		ItemStack s = targetIcon();
 		return p.enchants().length > 0 ? glint(s) : s;
+	}
+
+	/** The item in the anvil if it is of the planned type (e.g. an iron helmet), else the type's icon. */
+	private ItemStack targetIcon() {
+		ItemStack in = anvilItem(0);
+		return PlannerState.target().contains(in) ? new ItemStack(in.getItem()) : PlannerState.target().icon();
 	}
 
 	/** Does the anvil slot hold exactly this piece (same item kind and the same enchantments)? */
@@ -556,7 +555,7 @@ public final class PlannerOverlay {
 		if (stack.isEmpty()) {
 			return false;
 		}
-		if (p.isTarget() ? stack.getItem() != PlannerState.target() : !stack.is(Items.ENCHANTED_BOOK)) {
+		if (p.isTarget() ? !PlannerState.target().contains(stack) : !stack.is(Items.ENCHANTED_BOOK)) {
 			return false;
 		}
 		ItemEnchantments ench = EnchantmentHelper.getEnchantmentsForCrafting(stack);
@@ -627,8 +626,10 @@ public final class PlannerOverlay {
 		Item item = in.isEmpty() ? null : in.getItem();
 		if (item != lastAnvilItem) {
 			lastAnvilItem = item;
-			if (item != null && item != PlannerState.target() && EnchantCatalog.isEnchantTarget(item)) {
-				selectTarget(item);
+			// select the item's type (an iron helmet selects "Helmet"); taking it out changes nothing
+			if (item != null && !PlannerState.target().contains(in)
+					&& (ItemType.all().stream().anyMatch(t -> t.contains(in)) || EnchantCatalog.isEnchantTarget(item))) {
+				selectTarget(ItemType.of(in));
 				pickingItem = false;
 			}
 		}
@@ -638,31 +639,11 @@ public final class PlannerOverlay {
 		return screen.getMenu().getSlot(slot).getItem();
 	}
 
-	private void selectTarget(Item item) {
-		PlannerState.setTarget(item);
-		enchantScroll = 0;
-	}
-
-	private List<ItemStack> targets() {
-		List<ItemStack> list = new ArrayList<>(DEFAULT_TARGETS.length + 1);
-		boolean found = false;
-		for (Item i : DEFAULT_TARGETS) {
-			list.add(new ItemStack(i));
-			found |= i == PlannerState.target();
+	private void selectTarget(ItemType type) {
+		if (!type.equals(PlannerState.target())) {
+			enchantScroll = 0;
 		}
-		if (!found) {
-			list.addFirst(new ItemStack(PlannerState.target()));
-		}
-		return list;
-	}
-
-	private static int indexOfTarget(List<ItemStack> targets) {
-		for (int i = 0; i < targets.size(); i++) {
-			if (targets.get(i).getItem() == PlannerState.target()) {
-				return i;
-			}
-		}
-		return 0;
+		PlannerState.setTarget(type);
 	}
 
 	private static ItemStack glint(ItemStack s) {
