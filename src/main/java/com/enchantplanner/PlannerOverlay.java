@@ -21,6 +21,7 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.item.enchantment.ItemEnchantments;
@@ -90,6 +91,8 @@ public final class PlannerOverlay {
 	private Rect setupList;
 	private Rect stepList;
 	private boolean compact;
+	private int anvilX;
+	private int anvilY;
 
 	private final List<Hotspot> hotspots = new ArrayList<>();
 	private static boolean pickingItem;
@@ -119,6 +122,8 @@ public final class PlannerOverlay {
 		int h = screen.height;
 		int ax = (w - ANVIL_W) / 2;
 		int ay = (h - ANVIL_H) / 2;
+		anvilX = ax;
+		anvilY = ay;
 		int side = ax - 2 * GAP;
 		int ph = Math.min(h - 8, 230);
 		int py = (h - ph) / 2;
@@ -160,6 +165,9 @@ public final class PlannerOverlay {
 			g.nextStratum();
 
 			if (PlannerState.visible) {
+				if (!compact) {
+					extractNextStepSlots(g);
+				}
 				extractSetup(g, mouseX, mouseY);
 				extractOrder(g, mouseX, mouseY);
 			}
@@ -168,6 +176,30 @@ public final class PlannerOverlay {
 			// never take the anvil screen down with us
 			EnchantPlannerClient.LOGGER.error("Enchant Planner failed to draw", e);
 			PlannerState.visible = false;
+		}
+	}
+
+	/** Outline the inventory slots holding the item and book for the next step of the plan. */
+	private void extractNextStepSlots(GuiGraphicsExtractor g) {
+		EnchantSolver.Result plan = PlannerState.result();
+		int next = InventoryCheck.nextStep(plan);
+		if (next < 0 || PlannerState.computing()) {
+			return;
+		}
+		EnchantSolver.Step step = plan.steps().get(next);
+		// a slow pulse so it catches the eye without flashing
+		int alpha = 0x50 + (int) (0x40 * (0.5 + 0.5 * Math.sin(System.currentTimeMillis() / 250.0)));
+		for (EnchantSolver.Piece piece : List.of(step.left(), step.right())) {
+			if (PlanMatcher.matches(piece, anvilItem(0)) || PlanMatcher.matches(piece, anvilItem(1))) {
+				continue; // already in the anvil
+			}
+			Slot slot = InventoryCheck.findInInventory(screen.getMenu(), piece);
+			if (slot != null) {
+				int x = anvilX + slot.x;
+				int y = anvilY + slot.y;
+				g.fill(x, y, x + 16, y + 16, (alpha << 24) | 0xFFD040);
+				g.outline(x - 1, y - 1, 18, 18, 0xFFFFD040);
+			}
 		}
 	}
 
@@ -470,7 +502,28 @@ public final class PlannerOverlay {
 		y += 10;
 		g.text(font, ellipsize(Component.translatable("enchant_planner.total_xp", (int) res.totalXp(), res.maxStepLevels()).getString(), tw),
 				tx, y, TEXT_DARK, false);
-		y += 12;
+		y += 10;
+		List<EnchantSolver.Piece> needed = InventoryCheck.neededBooks(res);
+		List<EnchantSolver.Piece> missing = InventoryCheck.missingBooks(screen.getMenu(), res);
+		if (!needed.isEmpty()) {
+			Component books = Component.translatable("enchant_planner.books", needed.size() - missing.size(), needed.size());
+			g.text(font, ellipsize(books.getString(), tw), tx, y, missing.isEmpty() ? 0xFF207020 : 0xFFAA2020, false);
+			Rect booksLine = new Rect(tx, y - 1, Math.min(tw, font.width(books)), 10);
+			if (booksLine.contains(mx, my)) {
+				List<Component> tip = new ArrayList<>();
+				if (missing.isEmpty()) {
+					tip.add(Component.translatable("enchant_planner.books.all").withColor(0xFF80FF80));
+				} else {
+					tip.add(Component.translatable("enchant_planner.books.missing").withColor(0xFFFF8080));
+					for (EnchantSolver.Piece p : missing) {
+						tip.add(Component.literal("- ").append(describe(p)));
+					}
+				}
+				g.setComponentTooltipForNextFrame(font, tip, mx, my);
+			}
+			y += 10;
+		}
+		y += 2;
 
 		int hintY = r.bottom() - PAD - 9;
 		stepList = new Rect(r.x() + PAD, y, r.w() - 2 * PAD, hintY - 2 - y);
@@ -504,7 +557,7 @@ public final class PlannerOverlay {
 				continue;
 			}
 			boolean done = PlannerState.doneSteps.contains(i);
-			boolean current = !done && matches(s.left(), slot0) && matches(s.right(), slot1);
+			boolean current = !done && PlanMatcher.matches(s.left(), slot0) && PlanMatcher.matches(s.right(), slot1);
 			boolean hover = inArea && block.contains(mx, my);
 
 			if (current) {
@@ -521,8 +574,10 @@ public final class PlannerOverlay {
 			int by = block.y() + 2;
 			g.text(font, done ? "✔" : (i + 1) + ".", bx, by + 4, done ? 0xFF80FF80 : TEXT_LIGHT, true);
 			g.item(icon(s.left()), bx + 13, by);
+			bookMarker(g, s.left(), bx + 13, by);
 			g.text(font, "+", bx + 31, by + 4, TEXT_LIGHT, true);
 			g.item(icon(s.right()), bx + 38, by);
+			bookMarker(g, s.right(), bx + 38, by);
 			String cost = Component.translatable("enchant_planner.levels", s.levels()).getString();
 			g.text(font, cost, block.right() - 3 - font.width(cost), by + 4, canAfford(s.levels()) ? COST_OK : COST_BAD, true);
 
@@ -556,6 +611,16 @@ public final class PlannerOverlay {
 		}
 		g.disableScissor();
 		scrollbar(g, area, contentH, stepScroll);
+	}
+
+	/** A small dot on a book the plan starts from: green if you have it, red if you still need it. */
+	private void bookMarker(GuiGraphicsExtractor g, EnchantSolver.Piece p, int x, int y) {
+		if (p.isTarget() || p.priorWork() > 0) {
+			return;
+		}
+		boolean have = InventoryCheck.has(screen.getMenu(), p);
+		g.fill(x + 11, y + 11, x + 16, y + 16, 0xFF000000);
+		g.fill(x + 12, y + 12, x + 15, y + 15, have ? 0xFF50E050 : 0xFFE04040);
 	}
 
 	private static int stepHeight(List<FormattedCharSequence> lines) {
@@ -593,72 +658,6 @@ public final class PlannerOverlay {
 	private ItemStack targetIcon() {
 		ItemStack in = anvilItem(0);
 		return PlannerState.target().contains(in) ? new ItemStack(in.getItem()) : PlannerState.target().icon();
-	}
-
-	/** Does the anvil slot hold exactly this piece (same item kind and the same enchantments)? */
-	private boolean matches(EnchantSolver.Piece p, ItemStack stack) {
-		return matches(p, stack, true);
-	}
-
-	/** @param checkCost also require the plan's repair cost (not needed to know the item is finished) */
-	private boolean matches(EnchantSolver.Piece p, ItemStack stack, boolean checkCost) {
-		if (stack.isEmpty()) {
-			return false;
-		}
-		if (p.isTarget() ? !PlannerState.target().contains(stack) : !stack.is(Items.ENCHANTED_BOOK)) {
-			return false;
-		}
-		Map<ResourceKey<Enchantment>, Integer> levels = enchantLevels(stack);
-		if (p.isTarget()) {
-			// same stage of the plan only with the plan's repair cost (an item enchanted another way
-			// can have the same enchantments but cost more)
-			if (checkCost && stack.getOrDefault(DataComponents.REPAIR_COST, 0) != EnchantSolver.penalty(p.priorWork())) {
-				return false;
-			}
-			// enchantments you unticked while this item was in the anvil no longer count, unless they
-			// clash with the plan
-			for (ResourceKey<Enchantment> unticked : PlannerState.untickedForItem) {
-				if (levels.containsKey(unticked) && !PlannerState.selection().containsKey(unticked)
-						&& !clashesWithSelection(unticked)) {
-					levels.remove(unticked);
-				}
-			}
-		}
-		return levels.equals(expectedLevels(p));
-	}
-
-	private static boolean clashesWithSelection(ResourceKey<Enchantment> key) {
-		EnchantCatalog.Entry extra = PlannerState.catalog().find(key);
-		if (extra == null) {
-			return false;
-		}
-		for (ResourceKey<Enchantment> selected : PlannerState.selection().keySet()) {
-			EnchantCatalog.Entry e = PlannerState.catalog().find(selected);
-			if (e != null && !extra.compatibleWith(e)) {
-				return true;
-			}
-		}
-		return false;
-	}
-
-	/** The enchantments a piece of the plan has: for the item, what it started with plus what the step added. */
-	private static Map<ResourceKey<Enchantment>, Integer> expectedLevels(EnchantSolver.Piece p) {
-		Map<ResourceKey<Enchantment>, Integer> out = new HashMap<>();
-		if (p.isTarget()) {
-			out.putAll(PlannerState.startEnchants());
-		}
-		for (int id : p.enchants()) {
-			out.put(PlannerState.solvedEntries().get(id).key(), PlannerState.solvedLevels().get(id));
-		}
-		return out;
-	}
-
-	private static Map<ResourceKey<Enchantment>, Integer> enchantLevels(ItemStack stack) {
-		Map<ResourceKey<Enchantment>, Integer> out = new HashMap<>();
-		for (Object2IntMap.Entry<Holder<Enchantment>> e : EnchantmentHelper.getEnchantmentsForCrafting(stack).entrySet()) {
-			e.getKey().unwrapKey().ifPresent(k -> out.put(k, e.getIntValue()));
-		}
-		return out;
 	}
 
 	private boolean canAfford(int levels) {
@@ -779,7 +778,7 @@ public final class PlannerOverlay {
 		}
 		for (int i = 0; i < res.steps().size(); i++) {
 			EnchantSolver.Step s = res.steps().get(i);
-			if (!PlannerState.doneSteps.contains(i) && matches(s.left(), left) && matches(s.right(), right)) {
+			if (!PlannerState.doneSteps.contains(i) && PlanMatcher.matches(s.left(), left) && PlanMatcher.matches(s.right(), right)) {
 				return i;
 			}
 		}
@@ -788,7 +787,7 @@ public final class PlannerOverlay {
 
 	/** Plan from this item: keep its enchantments and pay its repair cost. A fresh item resets to a fresh plan. */
 	private void captureStartItem(ItemStack in) {
-		Map<ResourceKey<Enchantment>, Integer> enchants = new HashMap<>(enchantLevels(in));
+		Map<ResourceKey<Enchantment>, Integer> enchants = new HashMap<>(PlanMatcher.enchantLevels(in));
 		enchants.keySet().removeIf(k -> PlannerState.catalog().find(k) == null);
 		enchants.keySet().removeAll(PlannerState.untickedForItem); // you unticked these for this item
 		int repairCost = in.getOrDefault(DataComponents.REPAIR_COST, 0);
@@ -815,11 +814,11 @@ public final class PlannerOverlay {
 			all[i] = i;
 		}
 		int finalWork = EnchantSolver.workFromRepairCost(res.finalPriorWork());
-		if (matches(new EnchantSolver.Piece(true, all, finalWork), in, false)) { // finished, whatever it cost
+		if (PlanMatcher.matches(new EnchantSolver.Piece(true, all, finalWork), in, false)) { // finished, whatever it cost
 			return ids(all);
 		}
 		for (EnchantSolver.Step s : res.steps()) {
-			if (s.left().isTarget() && matches(s.left(), in)) {
+			if (s.left().isTarget() && PlanMatcher.matches(s.left(), in)) {
 				return ids(s.left().enchants());
 			}
 		}

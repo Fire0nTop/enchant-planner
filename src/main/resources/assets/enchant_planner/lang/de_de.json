@@ -57,5 +57,8 @@
 	"enchant_planner.on_item": "Schon auf deinem Gegenstand (%s): kostet nichts",
 	"enchant_planner.on_item.upgrade": "Dein Gegenstand hat %s; für die höhere Stufe brauchst du ein Buch",
 	"enchant_planner.impossible.used": "Zu teuer! Durch den Reparaturaufschlag deines Gegenstands hat jede Reihenfolge einen Schritt mit 40+ Leveln.",
-	"enchant_planner.all_owned": "Dein Gegenstand hat diese Verzauberungen schon alle."
+	"enchant_planner.all_owned": "Dein Gegenstand hat diese Verzauberungen schon alle.",
+	"enchant_planner.books": "Bücher: %s/%s im Inventar",
+	"enchant_planner.books.all": "Du hast alle Bücher für diesen Plan",
+	"enchant_planner.books.missing": "Es fehlen noch:"
 }

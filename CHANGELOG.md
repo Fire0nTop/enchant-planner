@@ -2,6 +2,9 @@
 
 ## 1.2.0
 
+- Inventory awareness: "Books: 3/4 in inventory" under the totals (hover it for the missing ones),
+  a green or red dot on each book of the plan for have / still need, and the item and book for the
+  next step outlined in your inventory.
 - The checklist follows the item in the anvil: an item at some stage of the plan ticks the steps
   that lead there and unticks the later ones, so swapping items updates it. Book + book steps tick
   when you take their result. An item that matches no stage of the plan becomes the starting item

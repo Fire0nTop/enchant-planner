@@ -1,6 +1,7 @@
 package com.enchantplanner.test;
 
 import com.enchantplanner.EnchantCatalog;
+import com.enchantplanner.InventoryCheck;
 import com.enchantplanner.ItemType;
 import com.enchantplanner.PlannerConfig;
 import com.enchantplanner.PlannerConfigScreen;
@@ -466,6 +467,57 @@ public class AnvilPlannerGameTest implements FabricClientGameTest {
 			ctx.runOnClient(mc -> PlannerState.clearStartItem());
 			System.out.println("[planner-test] swapping items: checklist follows fresh and halfway helmets, other helmet plans only what's missing");
 			System.out.println("[planner-test] following a " + stepCount + "-step plan: every step ticked itself, type stayed Helmet");
+
+			// inventory: a helmet plan with every needed book but one in the inventory
+			ctx.runOnClient(mc -> {
+				PlannerState.setTarget(ItemType.of(new ItemStack(Items.IRON_HELMET)));
+				PlannerState.clearStartItem();
+				PlannerState.clear();
+			});
+			setLevelOnClient(ctx, Enchantments.PROTECTION, 4);
+			setLevelOnClient(ctx, Enchantments.RESPIRATION, 3);
+			setLevelOnClient(ctx, Enchantments.UNBREAKING, 3);
+			setLevelOnClient(ctx, Enchantments.MENDING, 1);
+			List<Object[]> books = ctx.computeOnClient(mc -> {
+				List<Object[]> out = new ArrayList<>();
+				for (EnchantSolver.Piece piece : InventoryCheck.neededBooks(PlannerState.result())) {
+					out.add(pieceSpec(piece));
+				}
+				return out;
+			});
+			world.getServer().runOnServer(server -> {
+				ServerPlayer player = server.getPlayerList().getPlayers().getFirst();
+				var lookup = server.registryAccess().lookupOrThrow(Registries.ENCHANTMENT);
+				player.getInventory().add(new ItemStack(Items.IRON_HELMET));
+				for (int b = 1; b < books.size(); b++) { // leave out the first book
+					ItemStack book = new ItemStack(Items.ENCHANTED_BOOK);
+					@SuppressWarnings("unchecked")
+					Map<ResourceKey<Enchantment>, Integer> bookLevels = (Map<ResourceKey<Enchantment>, Integer>) books.get(b)[1];
+					bookLevels.forEach((key, level) -> book.enchant(lookup.getOrThrow(key), level));
+					player.getInventory().add(book);
+				}
+				player.containerMenu.broadcastChanges();
+			});
+			ctx.waitTicks(5);
+			String inventory = ctx.computeOnClient(mc -> {
+				var menu = mc.player.containerMenu;
+				EnchantSolver.Result plan = PlannerState.result();
+				EnchantSolver.Step first = plan.steps().get(InventoryCheck.nextStep(plan));
+				return InventoryCheck.neededBooks(plan).size() + " needed, " + InventoryCheck.missingBooks(menu, plan).size()
+						+ " missing, next step item " + (InventoryCheck.findInInventory(menu, first.left()) != null ? "found" : "not found")
+						+ ", book " + (InventoryCheck.findInInventory(menu, first.right()) != null ? "found" : "not found");
+			});
+			System.out.println("[planner-test] inventory: " + inventory);
+			ctx.takeScreenshot("planner_inventory");
+			if (!inventory.startsWith(books.size() + " needed, 1 missing, next step item found")) {
+				throw new AssertionError("inventory check: " + inventory);
+			}
+			world.getServer().runOnServer(server -> {
+				ServerPlayer player = server.getPlayerList().getPlayers().getFirst();
+				player.getInventory().clearContent();
+				player.containerMenu.broadcastChanges();
+			});
+			ctx.waitTicks(3);
 
 			// pickaxe: plan Mending + Unbreaking, put in the finished pickaxe (all done), tick Efficiency
 			// (doesn't fit the new plan: planned from the item) and untick it again (back to all done)

@@ -57,5 +57,8 @@
 	"enchant_planner.on_item": "Already on your item (%s): costs nothing",
 	"enchant_planner.on_item.upgrade": "Your item has %s; a book is needed for the higher level",
 	"enchant_planner.impossible.used": "Too Expensive! Your item's repair cost pushes every order to a step of 40+ levels.",
-	"enchant_planner.all_owned": "Your item already has all of these enchantments."
+	"enchant_planner.all_owned": "Your item already has all of these enchantments.",
+	"enchant_planner.books": "Books: %s/%s in inventory",
+	"enchant_planner.books.all": "You have every book this plan needs",
+	"enchant_planner.books.missing": "Still missing:"
 }
