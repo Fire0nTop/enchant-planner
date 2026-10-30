@@ -125,6 +125,17 @@ public final class PlannerState {
 		clearStartItem(true);
 	}
 
+	/**
+	 * Stop planning from the item (it was taken out of the anvil) but keep the selection: its
+	 * enchantments stay ticked as ordinary choices that can be changed or unticked.
+	 */
+	public static void releaseStartItem() {
+		if (startItem != null) {
+			startItem = null;
+			recompute();
+		}
+	}
+
 	private static void clearStartItem(boolean recompute) {
 		StartItem old = startItem;
 		if (old == null) {

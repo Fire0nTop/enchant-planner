@@ -95,6 +95,8 @@ public final class PlannerOverlay {
 	private static int gridScroll;
 	private static int stepScroll;
 	private ItemStack lastAnvilStack;
+	private ItemStack lastBookStack = ItemStack.EMPTY;
+	private ItemStack lastResultStack = ItemStack.EMPTY;
 
 	public PlannerOverlay(AnvilScreen screen) {
 		this.screen = screen;
@@ -664,12 +666,23 @@ public final class PlannerOverlay {
 
 	private void syncAnvilItem() {
 		ItemStack in = anvilItem(0);
+		ItemStack book = anvilItem(1);
+		boolean hadResult = !lastResultStack.isEmpty();
+		boolean bookUsed = !lastBookStack.isEmpty() && !ItemStack.matches(book, lastBookStack);
+		lastBookStack = book.copy();
+		lastResultStack = anvilItem(2).copy();
 		if (ItemStack.matches(in, lastAnvilStack)) {
 			return;
 		}
+		boolean hadItem = !lastAnvilStack.isEmpty();
 		lastAnvilStack = in.copy();
 		if (in.isEmpty()) {
-			return; // taking the item out changes nothing
+			// Taking a finished result uses up the item and the book together: the plan goes on.
+			// Taking the item out by hand: stop planning from it, but keep the selection as it is.
+			if (hadItem && !(hadResult && bookUsed)) {
+				PlannerState.releaseStartItem();
+			}
+			return;
 		}
 		// select the item's type (an iron helmet selects "Helmet")
 		if (!PlannerState.target().contains(in)

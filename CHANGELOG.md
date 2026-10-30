@@ -5,7 +5,8 @@
 - Plans from the item you put in the anvil: enchantments it already has are kept for free (shown
   in blue) and its repair cost from earlier anvil use is added to every step, so the levels match
   what the anvil charges. "From your <item>" under the item type shows this; the x goes back to a
-  fresh item. Putting back a half-finished item from the plan doesn't restart it.
+  fresh item. Taking the item out by hand turns its enchantments into normal choices you can untick;
+  taking a finished result or putting back a half-finished item from the plan keeps the plan going.
 
 ## 1.1.1
 

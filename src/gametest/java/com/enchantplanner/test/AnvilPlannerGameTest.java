@@ -22,6 +22,8 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.enchantment.Enchantment;
+import net.minecraft.world.item.enchantment.EnchantmentHelper;
+import net.minecraft.world.item.enchantment.EnchantmentInstance;
 import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.level.block.Blocks;
 import net.fabricmc.loader.api.FabricLoader;
@@ -223,6 +225,59 @@ public class AnvilPlannerGameTest implements FabricClientGameTest {
 			}
 			putInAnvil(world, Items.AIR);
 			System.out.println("[planner-test] starting item: used helmet costs 6, finished helmet keeps the plan, x resets");
+
+			// taking the item out by hand: Protection stays ticked but is an ordinary choice again,
+			// so it can be unticked; Unbreaking is untouched
+			putInAnvil(world, Items.IRON_HELMET, 3, Map.of(Enchantments.PROTECTION, 4));
+			ctx.waitTicks(5);
+			putInAnvil(world, Items.AIR);
+			ctx.waitTicks(5);
+			String removed = ctx.computeOnClient(mc -> {
+				String state = (PlannerState.startItem() == null ? "released" : "still from item")
+						+ ", " + PlannerState.selectedCount() + " selected";
+				for (EnchantCatalog.Entry e : PlannerState.catalog().entries()) {
+					if (e.key().equals(Enchantments.PROTECTION)) {
+						PlannerState.setLevel(e, 0);
+					}
+				}
+				return state + ", after unticking Protection " + PlannerState.selectedCount();
+			});
+			if (!removed.equals("released, 2 selected, after unticking Protection 1")) {
+				throw new AssertionError("taking the helmet out: expected 'released, 2 selected, after unticking Protection 1', got " + removed);
+			}
+
+			// taking a finished result (item + book used up together) keeps the plan going
+			putInAnvil(world, Items.IRON_HELMET, 3, Map.of(Enchantments.PROTECTION, 4));
+			ctx.waitTicks(5);
+			world.getServer().runOnServer(server -> {
+				ServerPlayer player = server.getPlayerList().getPlayers().getFirst();
+				player.giveExperienceLevels(30);
+				var unbreaking = server.registryAccess().lookupOrThrow(Registries.ENCHANTMENT).getOrThrow(Enchantments.UNBREAKING);
+				player.containerMenu.getSlot(1).set(EnchantmentHelper.createBook(new EnchantmentInstance(unbreaking, 3)));
+				player.containerMenu.broadcastChanges();
+			});
+			ctx.waitTicks(5);
+			double[] resultSlot = ctx.computeOnClient(mc -> {
+				Window w = mc.getWindow();
+				double f = (double) w.getScreenWidth() / w.getGuiScaledWidth();
+				int left = (w.getGuiScaledWidth() - 176) / 2;
+				int top = (w.getGuiScaledHeight() - 166) / 2;
+				return new double[]{(left + 134 + 8) * f, (top + 47 + 8) * f};
+			});
+			ctx.getInput().setCursorPos(resultSlot[0], resultSlot[1]);
+			ctx.waitTick();
+			ctx.getInput().pressMouse(InputConstants.MOUSE_BUTTON_LEFT);
+			ctx.waitTicks(5);
+			String taken = ctx.computeOnClient(mc -> mc.player.containerMenu.getCarried().getItem() + ", "
+					+ (PlannerState.startItem() == null ? "fresh" : "from item, repair " + PlannerState.startItem().repairCost()));
+			if (!taken.endsWith("from item, repair 3") || !taken.contains("iron_helmet")) {
+				throw new AssertionError("taking the anvil result: expected the plan to go on, got " + taken);
+			}
+			// put the result away so the next checks start clean
+			world.getServer().runOnServer(server -> server.getPlayerList().getPlayers().getFirst().containerMenu.setCarried(ItemStack.EMPTY));
+			ctx.runOnClient(mc -> PlannerState.clearStartItem());
+			ctx.waitTicks(3);
+			System.out.println("[planner-test] removal: by hand releases the item (selection kept, deselectable), taking a result keeps the plan");
 
 			// settings: Mod Menu offers our screen; clicking the option once switches Closed -> Open
 			boolean hasModMenuEntry = FabricLoader.getInstance().getEntrypointContainers("modmenu", ModMenuApi.class)
