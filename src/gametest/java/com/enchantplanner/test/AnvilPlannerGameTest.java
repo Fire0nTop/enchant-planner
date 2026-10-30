@@ -111,6 +111,39 @@ public class AnvilPlannerGameTest implements FabricClientGameTest {
 		}
 	}
 
+	private static void setLevelOnClient(ClientGameTestContext ctx, ResourceKey<Enchantment> key, int level) {
+		ctx.runOnClient(mc -> {
+			for (EnchantCatalog.Entry e : PlannerState.catalog().entries()) {
+				if (e.key().equals(key)) {
+					PlannerState.setLevel(e, level);
+				}
+			}
+		});
+		ctx.waitFor(mc -> !PlannerState.computing(), 200);
+		ctx.waitTicks(3);
+	}
+
+	private static void expectAllDone(ClientGameTestContext ctx, String when) {
+		String state = ctx.computeOnClient(mc -> describePlan());
+		boolean ok = ctx.computeOnClient(mc -> PlannerState.startItem() == null && PlannerState.result() != null
+				&& PlannerState.doneSteps.size() == PlannerState.result().steps().size());
+		if (!ok) {
+			throw new AssertionError(when + ": expected no starting item and every step done, got " + state);
+		}
+	}
+
+	private static String describePlan() {
+		StringBuilder b = new StringBuilder();
+		b.append(PlannerState.startItem() == null ? "no start" : "start " + PlannerState.startItem().enchants().keySet()).append(" | selected ")
+				.append(PlannerState.selection().keySet()).append(" | steps ");
+		List<EnchantSolver.Step> steps = PlannerState.result() == null ? List.of() : PlannerState.result().steps();
+		for (int i = 0; i < steps.size(); i++) {
+			b.append(PlannerState.doneSteps.contains(i) ? "[x]" : "[ ]").append(steps.get(i).left().isTarget() ? "item" : "book")
+					.append(java.util.Arrays.toString(steps.get(i).right().enchants())).append(' ');
+		}
+		return b.toString();
+	}
+
 	private static void expectHelmet(ClientGameTestContext ctx, String when, int typeCount) {
 		String state = ctx.computeOnClient(mc -> PlannerState.target().id() + ", " + ItemType.all().size()
 				+ " types, " + PlannerState.selectedCount() + " selected");
@@ -399,6 +432,24 @@ public class AnvilPlannerGameTest implements FabricClientGameTest {
 			expectChecklist(ctx, "helmet before the last step", halfwayIds);
 			ctx.takeScreenshot("planner_follow_halfway");
 
+			// unticking on the left re-checks the item against the new plan: Protection (not on the
+			// helmet yet) leaves nothing to do; Respiration (on the helmet) just stops counting
+			setLevelOnClient(ctx, Enchantments.PROTECTION, 0);
+			expectAllDone(ctx, "unticked Protection");
+			setLevelOnClient(ctx, Enchantments.RESPIRATION, 0);
+			expectAllDone(ctx, "unticked Respiration, which the helmet has");
+			if (ctx.computeOnClient(mc -> PlannerState.selection().containsKey(Enchantments.RESPIRATION))) {
+				throw new AssertionError("unticked Respiration was ticked again");
+			}
+			ctx.takeScreenshot("planner_untick_on_item");
+			setLevelOnClient(ctx, Enchantments.PROTECTION, 4);
+			setLevelOnClient(ctx, Enchantments.RESPIRATION, 3);
+			String reticked = ctx.computeOnClient(mc -> describePlan());
+			if (!ctx.computeOnClient(mc -> PlannerState.selection().containsKey(Enchantments.RESPIRATION)
+					&& PlannerState.selection().containsKey(Enchantments.PROTECTION))) {
+				throw new AssertionError("ticking Protection and Respiration again didn't stick: " + reticked);
+			}
+
 			// a helmet that matches no stage of the plan (it has Thorns): planned from, only missing enchantments
 			putInAnvil(world, Items.IRON_HELMET, 1, Map.of(Enchantments.THORNS, 1, Enchantments.MENDING, 1));
 			ctx.waitTicks(5);
@@ -408,7 +459,7 @@ public class AnvilPlannerGameTest implements FabricClientGameTest {
 					+ ", " + PlannerState.solvedEntries().size() + " books planned");
 			ctx.takeScreenshot("planner_follow_other_item");
 			if (!other.equals("from item, 3 books planned")) {
-				throw new AssertionError("helmet with Thorns + Mending: expected 'from item, 3 books planned', got " + other);
+				throw new AssertionError("helmet with Thorns + Mending: expected 'from item, 3 books planned', got " + other + " / " + ctx.computeOnClient(mc -> describePlan()));
 			}
 			putInAnvil(world, Items.AIR);
 			ctx.runOnClient(mc -> PlannerState.clearStartItem());

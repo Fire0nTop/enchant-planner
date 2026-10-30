@@ -603,7 +603,32 @@ public final class PlannerOverlay {
 		if (p.isTarget() ? !PlannerState.target().contains(stack) : !stack.is(Items.ENCHANTED_BOOK)) {
 			return false;
 		}
-		return enchantLevels(stack).equals(expectedLevels(p));
+		Map<ResourceKey<Enchantment>, Integer> levels = enchantLevels(stack);
+		if (p.isTarget()) {
+			// enchantments you unticked while this item was in the anvil no longer count, unless they
+			// clash with the plan
+			for (ResourceKey<Enchantment> unticked : PlannerState.untickedForItem) {
+				if (levels.containsKey(unticked) && !PlannerState.selection().containsKey(unticked)
+						&& !clashesWithSelection(unticked)) {
+					levels.remove(unticked);
+				}
+			}
+		}
+		return levels.equals(expectedLevels(p));
+	}
+
+	private static boolean clashesWithSelection(ResourceKey<Enchantment> key) {
+		EnchantCatalog.Entry extra = PlannerState.catalog().find(key);
+		if (extra == null) {
+			return false;
+		}
+		for (ResourceKey<Enchantment> selected : PlannerState.selection().keySet()) {
+			EnchantCatalog.Entry e = PlannerState.catalog().find(selected);
+			if (e != null && !extra.compatibleWith(e)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/** The enchantments a piece of the plan has: for the item, what it started with plus what the step added. */
@@ -693,6 +718,9 @@ public final class PlannerOverlay {
 		}
 		lastPlan = PlannerState.result();
 		boolean hadItem = !lastAnvilStack.isEmpty();
+		if (!ItemStack.matches(in, lastAnvilStack)) {
+			PlannerState.untickedForItem.clear();
+		}
 		lastAnvilStack = in.copy();
 		if (in.isEmpty()) {
 			if (hadItem && hadResult && bookUsed) {
@@ -744,6 +772,7 @@ public final class PlannerOverlay {
 	private void captureStartItem(ItemStack in) {
 		Map<ResourceKey<Enchantment>, Integer> enchants = new HashMap<>(enchantLevels(in));
 		enchants.keySet().removeIf(k -> PlannerState.catalog().find(k) == null);
+		enchants.keySet().removeAll(PlannerState.untickedForItem); // you unticked these for this item
 		int repairCost = in.getOrDefault(DataComponents.REPAIR_COST, 0);
 		PlannerState.StartItem current = PlannerState.startItem();
 		if (enchants.isEmpty() && repairCost == 0) {

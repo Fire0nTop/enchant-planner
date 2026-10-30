@@ -174,12 +174,21 @@ public final class PlannerState {
 	public static void setLevel(EnchantCatalog.Entry e, int level) {
 		level = Math.max(level, ownedLevel(e)); // the anvil can't remove what the item already has
 		if (level <= 0) {
-			selection().remove(e.key());
+			if (selection().remove(e.key()) != null) {
+				untickedForItem.add(e.key());
+			}
 		} else {
 			selection().put(e.key(), Math.min(level, Math.max(1, e.maxLevel())));
+			untickedForItem.remove(e.key());
 		}
 		recompute();
 	}
+
+	/**
+	 * Enchantments unticked while the current item was in the anvil: if the item has them they
+	 * no longer count when comparing it with the plan. Reset when a different item goes in.
+	 */
+	public static final Set<ResourceKey<Enchantment>> untickedForItem = new HashSet<>();
 
 	/** Untick everything except what the starting item already has. */
 	public static void clear() {

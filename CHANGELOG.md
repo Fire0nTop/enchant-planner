@@ -5,7 +5,9 @@
 - The checklist follows the item in the anvil: an item at some stage of the plan ticks the steps
   that lead there and unticks the later ones, so swapping items updates it. Book + book steps tick
   when you take their result. An item that matches no stage of the plan becomes the starting item
-  (its enchantments in blue) and only the missing enchantments are planned.
+  (its enchantments in blue) and only the missing enchantments are planned. Changing the
+  selection re-checks the item; an enchantment you untick while the item is in the anvil stops
+  counting for that item instead of being ticked again.
 - Fixed: a book in the anvil (a book + book step) switched the item type to Book and lost the plan.
 - Plans from the item you put in the anvil: enchantments it already has are kept for free (shown
   in blue) and its repair cost from earlier anvil use is added to every step, so the levels match
