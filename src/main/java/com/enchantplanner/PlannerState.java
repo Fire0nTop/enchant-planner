@@ -108,6 +108,7 @@ public final class PlannerState {
 
 	/** Plan from an item with these enchantments and repair cost; ticks the enchantments it has. */
 	public static void setStartItem(Item item, Map<ResourceKey<Enchantment>, Integer> enchants, int repairCost) {
+		StartItem before = suspended;
 		clearStartItem(false);
 		Set<ResourceKey<Enchantment>> auto = new HashSet<>();
 		for (Map.Entry<ResourceKey<Enchantment>, Integer> e : enchants.entrySet()) {
@@ -115,6 +116,14 @@ public final class PlannerState {
 			if (selected == null || selected < e.getValue()) {
 				selection().put(e.getKey(), e.getValue());
 				auto.add(e.getKey());
+			}
+		}
+		if (before != null && before.item() == item) {
+			// coming back after a re-check: still remember what was ticked only because of the item
+			for (ResourceKey<Enchantment> key : before.autoSelected()) {
+				if (enchants.containsKey(key)) {
+					auto.add(key);
+				}
 			}
 		}
 		startItem = new StartItem(target(), item, Map.copyOf(enchants), repairCost, Set.copyOf(auto));
@@ -129,7 +138,22 @@ public final class PlannerState {
 	 * Stop planning from the item (it was taken out of the anvil) but keep the selection: its
 	 * enchantments stay ticked as ordinary choices that can be changed or unticked.
 	 */
+	/**
+	 * Plan without the item for a moment, so it can be compared with the normal plan again; if it
+	 * still doesn't fit, {@link #setStartItem} picks it up again with what it had ticked.
+	 */
+	public static void suspendStartItem() {
+		if (startItem != null) {
+			suspended = startItem;
+			startItem = null;
+			recompute();
+		}
+	}
+
+	private static StartItem suspended;
+
 	public static void releaseStartItem() {
+		suspended = null;
 		if (startItem != null) {
 			startItem = null;
 			recompute();
@@ -137,6 +161,7 @@ public final class PlannerState {
 	}
 
 	private static void clearStartItem(boolean recompute) {
+		suspended = null;
 		StartItem old = startItem;
 		if (old == null) {
 			return;
@@ -181,8 +206,15 @@ public final class PlannerState {
 			selection().put(e.key(), Math.min(level, Math.max(1, e.maxLevel())));
 			untickedForItem.remove(e.key());
 		}
+		selectionChanged = true;
 		recompute();
 	}
+
+	/**
+	 * Set when the player changes what to plan; the overlay then compares the item in the anvil
+	 * with the normal plan again before falling back to planning from the item.
+	 */
+	public static boolean selectionChanged;
 
 	/**
 	 * Enchantments unticked while the current item was in the anvil: if the item has them they
@@ -194,11 +226,13 @@ public final class PlannerState {
 	public static void clear() {
 		selection().clear();
 		selection().putAll(startEnchants());
+		selectionChanged = true;
 		recompute();
 	}
 
 	public static void toggleMode() {
 		mode = mode == EnchantSolver.Mode.LEVELS ? EnchantSolver.Mode.PRIOR_WORK : EnchantSolver.Mode.LEVELS;
+		selectionChanged = true;
 		recompute();
 	}
 

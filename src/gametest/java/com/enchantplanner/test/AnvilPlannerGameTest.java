@@ -462,9 +462,39 @@ public class AnvilPlannerGameTest implements FabricClientGameTest {
 				throw new AssertionError("helmet with Thorns + Mending: expected 'from item, 3 books planned', got " + other + " / " + ctx.computeOnClient(mc -> describePlan()));
 			}
 			putInAnvil(world, Items.AIR);
+			ctx.waitTicks(5); // let the client see the empty anvil before switching to another type
 			ctx.runOnClient(mc -> PlannerState.clearStartItem());
 			System.out.println("[planner-test] swapping items: checklist follows fresh and halfway helmets, other helmet plans only what's missing");
 			System.out.println("[planner-test] following a " + stepCount + "-step plan: every step ticked itself, type stayed Helmet");
+
+			// pickaxe: plan Mending + Unbreaking, put in the finished pickaxe (all done), tick Efficiency
+			// (doesn't fit the new plan: planned from the item) and untick it again (back to all done)
+			ctx.runOnClient(mc -> {
+				PlannerState.setTarget(ItemType.of(new ItemStack(Items.IRON_PICKAXE)));
+				PlannerState.clear();
+			});
+			setLevelOnClient(ctx, Enchantments.MENDING, 1);
+			setLevelOnClient(ctx, Enchantments.UNBREAKING, 3);
+			int finishedCost = ctx.computeOnClient(mc -> PlannerState.result().finalPriorWork());
+			putInAnvil(world, Items.IRON_PICKAXE, finishedCost, Map.of(Enchantments.MENDING, 1, Enchantments.UNBREAKING, 3));
+			ctx.waitTicks(5);
+			expectAllDone(ctx, "finished pickaxe in the anvil");
+			setLevelOnClient(ctx, Enchantments.EFFICIENCY, 5);
+			ctx.waitFor(mc -> !PlannerState.computing(), 200);
+			ctx.waitTicks(5);
+			String withEfficiency = ctx.computeOnClient(mc -> describePlan());
+			if (!ctx.computeOnClient(mc -> PlannerState.startItem() != null && PlannerState.solvedEntries().size() == 1)) {
+				throw new AssertionError("ticked Efficiency: expected planning from the pickaxe with 1 book, got " + withEfficiency);
+			}
+			ctx.takeScreenshot("planner_pickaxe_efficiency");
+			setLevelOnClient(ctx, Enchantments.EFFICIENCY, 0);
+			ctx.waitFor(mc -> !PlannerState.computing(), 200);
+			ctx.waitTicks(5);
+			expectAllDone(ctx, "unticked Efficiency again");
+			ctx.takeScreenshot("planner_pickaxe_back");
+			putInAnvil(world, Items.AIR);
+			ctx.waitTicks(3);
+			System.out.println("[planner-test] pickaxe: ticking Efficiency plans from the item, unticking it returns to the checked plan");
 
 			// settings: Mod Menu offers our screen; clicking the option once switches Closed -> Open
 			boolean hasModMenuEntry = FabricLoader.getInstance().getEntrypointContainers("modmenu", ModMenuApi.class)

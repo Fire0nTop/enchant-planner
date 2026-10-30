@@ -597,6 +597,11 @@ public final class PlannerOverlay {
 
 	/** Does the anvil slot hold exactly this piece (same item kind and the same enchantments)? */
 	private boolean matches(EnchantSolver.Piece p, ItemStack stack) {
+		return matches(p, stack, true);
+	}
+
+	/** @param checkCost also require the plan's repair cost (not needed to know the item is finished) */
+	private boolean matches(EnchantSolver.Piece p, ItemStack stack, boolean checkCost) {
 		if (stack.isEmpty()) {
 			return false;
 		}
@@ -605,6 +610,11 @@ public final class PlannerOverlay {
 		}
 		Map<ResourceKey<Enchantment>, Integer> levels = enchantLevels(stack);
 		if (p.isTarget()) {
+			// same stage of the plan only with the plan's repair cost (an item enchanted another way
+			// can have the same enchantments but cost more)
+			if (checkCost && stack.getOrDefault(DataComponents.REPAIR_COST, 0) != EnchantSolver.penalty(p.priorWork())) {
+				return false;
+			}
 			// enchantments you unticked while this item was in the anvil no longer count, unless they
 			// clash with the plan
 			for (ResourceKey<Enchantment> unticked : PlannerState.untickedForItem) {
@@ -711,6 +721,14 @@ public final class PlannerOverlay {
 		lastBookStack = book.copy();
 		lastResultStack = anvilItem(2).copy();
 		lastStepInAnvil = stepInAnvil(in, book);
+		if (PlannerState.selectionChanged) {
+			// what to plan changed: compare the item with the normal plan first, not with a plan
+			// that starts from the item (that comes back below if the item still doesn't fit)
+			PlannerState.selectionChanged = false;
+			if (PlannerState.startItem() != null && PlannerState.target().contains(in)) {
+				PlannerState.suspendStartItem();
+			}
+		}
 		// a new plan (e.g. the selection changed) is compared with the item again
 		boolean newPlan = PlannerState.result() != lastPlan && !PlannerState.computing();
 		if ((ItemStack.matches(in, lastAnvilStack) && !newPlan) || (PlannerState.computing() && !in.isEmpty())) {
@@ -796,7 +814,8 @@ public final class PlannerOverlay {
 		for (int i = 0; i < all.length; i++) {
 			all[i] = i;
 		}
-		if (matches(new EnchantSolver.Piece(true, all, 0), in)) {
+		int finalWork = EnchantSolver.workFromRepairCost(res.finalPriorWork());
+		if (matches(new EnchantSolver.Piece(true, all, finalWork), in, false)) { // finished, whatever it cost
 			return ids(all);
 		}
 		for (EnchantSolver.Step s : res.steps()) {

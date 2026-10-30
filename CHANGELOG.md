@@ -7,7 +7,9 @@
   when you take their result. An item that matches no stage of the plan becomes the starting item
   (its enchantments in blue) and only the missing enchantments are planned. Changing the
   selection re-checks the item; an enchantment you untick while the item is in the anvil stops
-  counting for that item instead of being ticked again.
+  counting for that item instead of being ticked again. After any change the item is compared
+  with the normal plan first, so unticking what you just added returns to the checked plan. A
+  half-finished item only counts as a stage of the plan with the plan's repair cost.
 - Fixed: a book in the anvil (a book + book step) switched the item type to Book and lost the plan.
 - Plans from the item you put in the anvil: enchantments it already has are kept for free (shown
   in blue) and its repair cost from earlier anvil use is added to every step, so the levels match
