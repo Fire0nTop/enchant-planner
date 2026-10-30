@@ -32,6 +32,7 @@ public final class EnchantPlannerClient implements ClientModInitializer {
 			}
 			PlannerOverlay overlay = new PlannerOverlay(anvil);
 			ScreenEvents.afterExtract(screen).register((s, g, mouseX, mouseY, delta) -> overlay.extract(g, mouseX, mouseY));
+			ScreenEvents.afterTick(screen).register(s -> overlay.tick());
 			ScreenMouseEvents.allowMouseClick(screen).register((s, event) -> !overlay.mouseClicked(event.x(), event.y(), event.button()));
 			ScreenMouseEvents.allowMouseScroll(screen).register((s, mx, my, h, v) -> !overlay.mouseScrolled(mx, my, v));
 		});

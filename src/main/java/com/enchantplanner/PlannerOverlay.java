@@ -27,8 +27,10 @@ import net.minecraft.world.item.enchantment.ItemEnchantments;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Draws the planner beside the vanilla anvil screen and handles its clicks. Rebuilt on every
@@ -99,6 +101,7 @@ public final class PlannerOverlay {
 	private ItemStack lastResultStack = ItemStack.EMPTY;
 	/** The plan step that was in the anvil last frame (taking its result ticks it off). */
 	private int lastStepInAnvil = -1;
+	private EnchantSolver.Result lastPlan;
 
 	public PlannerOverlay(AnvilScreen screen) {
 		this.screen = screen;
@@ -141,9 +144,17 @@ public final class PlannerOverlay {
 
 	// ---------------------------------------------------------------- frame
 
-	public void extract(GuiGraphicsExtractor g, int mouseX, int mouseY) {
+	/** Every client tick: follow what is in the anvil (independent of how often frames are drawn). */
+	public void tick() {
 		try {
 			syncAnvilItem();
+		} catch (RuntimeException e) {
+			EnchantPlannerClient.LOGGER.error("Enchant Planner failed to read the anvil", e);
+		}
+	}
+
+	public void extract(GuiGraphicsExtractor g, int mouseX, int mouseY) {
+		try {
 			layout();
 			hotspots.clear();
 			g.nextStratum();
@@ -675,9 +686,12 @@ public final class PlannerOverlay {
 		lastBookStack = book.copy();
 		lastResultStack = anvilItem(2).copy();
 		lastStepInAnvil = stepInAnvil(in, book);
-		if (ItemStack.matches(in, lastAnvilStack)) {
-			return;
+		// a new plan (e.g. the selection changed) is compared with the item again
+		boolean newPlan = PlannerState.result() != lastPlan && !PlannerState.computing();
+		if ((ItemStack.matches(in, lastAnvilStack) && !newPlan) || (PlannerState.computing() && !in.isEmpty())) {
+			return; // unchanged, or wait for the plan to compare the item with
 		}
+		lastPlan = PlannerState.result();
 		boolean hadItem = !lastAnvilStack.isEmpty();
 		lastAnvilStack = in.copy();
 		if (in.isEmpty()) {
@@ -700,8 +714,14 @@ public final class PlannerOverlay {
 			selectTarget(ItemType.of(in));
 			pickingItem = false;
 		}
-		if (PlannerState.target().contains(in) && !PlannerState.target().isBook() && !isPlannedState(in)) {
-			captureStartItem(in);
+		if (PlannerState.target().contains(in) && !PlannerState.target().isBook()) {
+			// an item at some stage of the plan sets the checklist; any other item becomes the new start
+			Set<Integer> stage = plannedStage(in);
+			if (stage != null) {
+				applyStage(stage);
+			} else {
+				captureStartItem(in);
+			}
 		}
 	}
 
@@ -734,23 +754,54 @@ public final class PlannerOverlay {
 		}
 	}
 
-	/** Is this the item at some point of the current plan (so putting it back must not restart the plan)? */
-	private boolean isPlannedState(ItemStack in) {
+	/**
+	 * The stage of the current plan this item is at, as the planned enchantments it already has
+	 * (empty: not started, all: finished), or {@code null} if it matches no stage of the plan.
+	 */
+	private Set<Integer> plannedStage(ItemStack in) {
 		EnchantSolver.Result res = PlannerState.result();
-		if (res == null || res.steps().isEmpty()) {
-			return false;
+		if (res == null) {
+			return null;
 		}
-		for (EnchantSolver.Step s : res.steps()) {
-			if (s.left().isTarget() && s.left().enchants().length > 0 && matches(s.left(), in)) {
-				return true;
-			}
-		}
-		// the finished item: what it started with plus everything planned
 		int[] all = new int[PlannerState.solvedEntries().size()];
 		for (int i = 0; i < all.length; i++) {
 			all[i] = i;
 		}
-		return matches(new EnchantSolver.Piece(true, all, 0), in);
+		if (matches(new EnchantSolver.Piece(true, all, 0), in)) {
+			return ids(all);
+		}
+		for (EnchantSolver.Step s : res.steps()) {
+			if (s.left().isTarget() && matches(s.left(), in)) {
+				return ids(s.left().enchants());
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Tick the steps that lead to this stage of the item and untick later steps on the item. Book +
+	 * book steps are ticked once their book is part of the item, otherwise left as they are.
+	 */
+	private static void applyStage(Set<Integer> stage) {
+		EnchantSolver.Result res = PlannerState.result();
+		for (int i = 0; i < res.steps().size(); i++) {
+			EnchantSolver.Step s = res.steps().get(i);
+			Set<Integer> made = ids(s.left().enchants());
+			made.addAll(ids(s.right().enchants()));
+			if (stage.containsAll(made)) {
+				PlannerState.doneSteps.add(i);
+			} else if (s.left().isTarget()) {
+				PlannerState.doneSteps.remove(i);
+			}
+		}
+	}
+
+	private static Set<Integer> ids(int[] ids) {
+		Set<Integer> out = new HashSet<>();
+		for (int id : ids) {
+			out.add(id);
+		}
+		return out;
 	}
 
 	private ItemStack anvilItem(int slot) {

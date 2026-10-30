@@ -34,6 +34,7 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Opens an anvil, then for several window sizes and GUI scales clicks the planner's book button
@@ -82,6 +83,32 @@ public class AnvilPlannerGameTest implements FabricClientGameTest {
 			levels.put(PlannerState.solvedEntries().get(id).key(), PlannerState.solvedLevels().get(id));
 		}
 		return new Object[]{piece.isTarget(), levels, EnchantSolver.penalty(piece.priorWork())};
+	}
+
+	/** Done steps must be exactly those whose enchantments are all part of this stage of the item. */
+	private static void expectChecklist(ClientGameTestContext ctx, String when, Set<Integer> stage) {
+		String state = ctx.computeOnClient(mc -> {
+			List<EnchantSolver.Step> steps = PlannerState.result().steps();
+			java.util.TreeSet<Integer> expected = new java.util.TreeSet<>();
+			for (int i = 0; i < steps.size(); i++) {
+				Set<Integer> made = new java.util.HashSet<>();
+				for (int id : steps.get(i).left().enchants()) {
+					made.add(id);
+				}
+				for (int id : steps.get(i).right().enchants()) {
+					made.add(id);
+				}
+				// book + book steps were all done earlier in this test and stay ticked
+				if (stage.containsAll(made) || !steps.get(i).left().isTarget()) {
+					expected.add(i);
+				}
+			}
+			java.util.TreeSet<Integer> actual = new java.util.TreeSet<>(PlannerState.doneSteps);
+			return expected.equals(actual) ? "ok" : "expected done " + expected + ", got " + actual;
+		});
+		if (!state.equals("ok")) {
+			throw new AssertionError(when + ": " + state);
+		}
 	}
 
 	private static void expectHelmet(ClientGameTestContext ctx, String when, int typeCount) {
@@ -343,6 +370,49 @@ public class AnvilPlannerGameTest implements FabricClientGameTest {
 				}
 			}
 			ctx.takeScreenshot("planner_follow_done");
+
+			// swapping items: the checklist follows the item in the anvil
+			putInAnvil(world, Items.IRON_HELMET);
+			ctx.waitTicks(5);
+			expectChecklist(ctx, "fresh helmet", Set.of());
+			int lastItemStep = ctx.computeOnClient(mc -> {
+				List<EnchantSolver.Step> steps = PlannerState.result().steps();
+				for (int i = steps.size() - 1; i >= 0; i--) {
+					if (steps.get(i).left().isTarget()) {
+						return i;
+					}
+				}
+				return -1;
+			});
+			Object[] halfway = ctx.computeOnClient(mc -> pieceSpec(PlannerState.result().steps().get(lastItemStep).left()));
+			@SuppressWarnings("unchecked")
+			Map<ResourceKey<Enchantment>, Integer> halfwayLevels = (Map<ResourceKey<Enchantment>, Integer>) halfway[1];
+			putInAnvil(world, Items.IRON_HELMET, (Integer) halfway[2], halfwayLevels);
+			ctx.waitTicks(5);
+			Set<Integer> halfwayIds = ctx.computeOnClient(mc -> {
+				Set<Integer> ids = new java.util.HashSet<>();
+				for (int id : PlannerState.result().steps().get(lastItemStep).left().enchants()) {
+					ids.add(id);
+				}
+				return ids;
+			});
+			expectChecklist(ctx, "helmet before the last step", halfwayIds);
+			ctx.takeScreenshot("planner_follow_halfway");
+
+			// a helmet that matches no stage of the plan (it has Thorns): planned from, only missing enchantments
+			putInAnvil(world, Items.IRON_HELMET, 1, Map.of(Enchantments.THORNS, 1, Enchantments.MENDING, 1));
+			ctx.waitTicks(5);
+			ctx.waitFor(mc -> !PlannerState.computing(), 200);
+			ctx.waitTicks(3);
+			String other = ctx.computeOnClient(mc -> (PlannerState.startItem() == null ? "no start item" : "from item")
+					+ ", " + PlannerState.solvedEntries().size() + " books planned");
+			ctx.takeScreenshot("planner_follow_other_item");
+			if (!other.equals("from item, 3 books planned")) {
+				throw new AssertionError("helmet with Thorns + Mending: expected 'from item, 3 books planned', got " + other);
+			}
+			putInAnvil(world, Items.AIR);
+			ctx.runOnClient(mc -> PlannerState.clearStartItem());
+			System.out.println("[planner-test] swapping items: checklist follows fresh and halfway helmets, other helmet plans only what's missing");
 			System.out.println("[planner-test] following a " + stepCount + "-step plan: every step ticked itself, type stayed Helmet");
 
 			// settings: Mod Menu offers our screen; clicking the option once switches Closed -> Open
