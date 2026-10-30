@@ -2,6 +2,9 @@
 
 ## 1.2.0
 
+- Steps tick themselves off: taking the result of the step that is in the anvil marks it done.
+  Clicking a step still toggles it by hand.
+- Fixed: a book in the anvil (a book + book step) switched the item type to Book and lost the plan.
 - Plans from the item you put in the anvil: enchantments it already has are kept for free (shown
   in blue) and its repair cost from earlier anvil use is added to every step, so the levels match
   what the anvil charges. "From your <item>" under the item type shows this; the x goes back to a

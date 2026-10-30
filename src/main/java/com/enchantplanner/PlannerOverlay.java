@@ -97,6 +97,8 @@ public final class PlannerOverlay {
 	private ItemStack lastAnvilStack;
 	private ItemStack lastBookStack = ItemStack.EMPTY;
 	private ItemStack lastResultStack = ItemStack.EMPTY;
+	/** The plan step that was in the anvil last frame (taking its result ticks it off). */
+	private int lastStepInAnvil = -1;
 
 	public PlannerOverlay(AnvilScreen screen) {
 		this.screen = screen;
@@ -669,30 +671,53 @@ public final class PlannerOverlay {
 		ItemStack book = anvilItem(1);
 		boolean hadResult = !lastResultStack.isEmpty();
 		boolean bookUsed = !lastBookStack.isEmpty() && !ItemStack.matches(book, lastBookStack);
+		int stepInAnvil = lastStepInAnvil;
 		lastBookStack = book.copy();
 		lastResultStack = anvilItem(2).copy();
+		lastStepInAnvil = stepInAnvil(in, book);
 		if (ItemStack.matches(in, lastAnvilStack)) {
 			return;
 		}
 		boolean hadItem = !lastAnvilStack.isEmpty();
 		lastAnvilStack = in.copy();
 		if (in.isEmpty()) {
-			// Taking a finished result uses up the item and the book together: the plan goes on.
-			// Taking the item out by hand: stop planning from it, but keep the selection as it is.
-			if (hadItem && !(hadResult && bookUsed)) {
+			if (hadItem && hadResult && bookUsed) {
+				// a finished result was taken: the plan goes on, and the step that was in the anvil is done
+				if (stepInAnvil >= 0) {
+					PlannerState.doneSteps.add(stepInAnvil);
+				}
+			} else if (hadItem) {
+				// taken out by hand: stop planning from it, but keep the selection as it is
 				PlannerState.releaseStartItem();
 			}
 			return;
 		}
-		// select the item's type (an iron helmet selects "Helmet")
-		if (!PlannerState.target().contains(in)
-				&& (ItemType.all().stream().anyMatch(t -> t.contains(in)) || EnchantCatalog.isEnchantTarget(in.getItem()))) {
+		// select the item's type (an iron helmet selects "Helmet"); books are left alone, since a
+		// book in the first slot is usually a book + book step of the plan
+		ItemType type = ItemType.all().stream().filter(t -> t.contains(in)).findFirst().orElse(null);
+		boolean book1 = type != null && type.isBook();
+		if (!book1 && !PlannerState.target().contains(in) && (type != null || EnchantCatalog.isEnchantTarget(in.getItem()))) {
 			selectTarget(ItemType.of(in));
 			pickingItem = false;
 		}
 		if (PlannerState.target().contains(in) && !PlannerState.target().isBook() && !isPlannedState(in)) {
 			captureStartItem(in);
 		}
+	}
+
+	/** Index of the not-yet-done step whose two inputs are in the anvil right now, or -1. */
+	private int stepInAnvil(ItemStack left, ItemStack right) {
+		EnchantSolver.Result res = PlannerState.result();
+		if (res == null || left.isEmpty() || right.isEmpty()) {
+			return -1;
+		}
+		for (int i = 0; i < res.steps().size(); i++) {
+			EnchantSolver.Step s = res.steps().get(i);
+			if (!PlannerState.doneSteps.contains(i) && matches(s.left(), left) && matches(s.right(), right)) {
+				return i;
+			}
+		}
+		return -1;
 	}
 
 	/** Plan from this item: keep its enchantments and pay its repair cost. A fresh item resets to a fresh plan. */

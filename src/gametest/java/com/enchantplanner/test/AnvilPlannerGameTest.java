@@ -72,6 +72,18 @@ public class AnvilPlannerGameTest implements FabricClientGameTest {
 		});
 	}
 
+	/** {isItem, enchantment levels, repair cost} for a piece of the current plan. */
+	private static Object[] pieceSpec(EnchantSolver.Piece piece) {
+		Map<ResourceKey<Enchantment>, Integer> levels = new java.util.HashMap<>();
+		if (piece.isTarget()) {
+			levels.putAll(PlannerState.startEnchants());
+		}
+		for (int id : piece.enchants()) {
+			levels.put(PlannerState.solvedEntries().get(id).key(), PlannerState.solvedLevels().get(id));
+		}
+		return new Object[]{piece.isTarget(), levels, EnchantSolver.penalty(piece.priorWork())};
+	}
+
 	private static void expectHelmet(ClientGameTestContext ctx, String when, int typeCount) {
 		String state = ctx.computeOnClient(mc -> PlannerState.target().id() + ", " + ItemType.all().size()
 				+ " types, " + PlannerState.selectedCount() + " selected");
@@ -278,6 +290,60 @@ public class AnvilPlannerGameTest implements FabricClientGameTest {
 			ctx.runOnClient(mc -> PlannerState.clearStartItem());
 			ctx.waitTicks(3);
 			System.out.println("[planner-test] removal: by hand releases the item (selection kept, deselectable), taking a result keeps the plan");
+
+			// follow a whole plan in the anvil: every taken result ticks its step, book + book steps
+			// don't switch the item type away from Helmet
+			ctx.runOnClient(mc -> {
+				PlannerState.clear();
+				for (EnchantCatalog.Entry e : PlannerState.catalog().entries()) {
+					if (e.key().equals(Enchantments.PROTECTION) || e.key().equals(Enchantments.UNBREAKING)
+							|| e.key().equals(Enchantments.MENDING) || e.key().equals(Enchantments.RESPIRATION)) {
+						PlannerState.setLevel(e, e.maxLevel());
+					}
+				}
+			});
+			ctx.waitFor(mc -> !PlannerState.computing(), 200);
+			int stepCount = ctx.computeOnClient(mc -> PlannerState.result().steps().size());
+			world.getServer().runOnServer(server -> server.getPlayerList().getPlayers().getFirst().giveExperienceLevels(200));
+			for (int i = 0; i < stepCount; i++) {
+				int step = i;
+				List<Object[]> pieces = ctx.computeOnClient(mc -> {
+					EnchantSolver.Step st = PlannerState.result().steps().get(step);
+					return List.of(pieceSpec(st.left()), pieceSpec(st.right()));
+				});
+				world.getServer().runOnServer(server -> {
+					ServerPlayer player = server.getPlayerList().getPlayers().getFirst();
+					var lookup = server.registryAccess().lookupOrThrow(Registries.ENCHANTMENT);
+					for (int slot = 0; slot < 2; slot++) {
+						Object[] spec = pieces.get(slot);
+						ItemStack stack = new ItemStack((Boolean) spec[0] ? Items.IRON_HELMET : Items.ENCHANTED_BOOK);
+						@SuppressWarnings("unchecked")
+						Map<ResourceKey<Enchantment>, Integer> pieceLevels = (Map<ResourceKey<Enchantment>, Integer>) spec[1];
+						pieceLevels.forEach((key, level) -> stack.enchant(lookup.getOrThrow(key), level));
+						if ((Integer) spec[2] > 0) {
+							stack.set(DataComponents.REPAIR_COST, (Integer) spec[2]);
+						}
+						player.containerMenu.getSlot(slot).set(stack);
+					}
+					player.containerMenu.broadcastChanges();
+				});
+				ctx.waitTicks(5);
+				if (step == 0) {
+					ctx.takeScreenshot("planner_follow_step1");
+				}
+				ctx.getInput().setCursorPos(resultSlot[0], resultSlot[1]);
+				ctx.waitTick();
+				ctx.getInput().pressMouse(InputConstants.MOUSE_BUTTON_LEFT);
+				ctx.waitTicks(5);
+				world.getServer().runOnServer(server -> server.getPlayerList().getPlayers().getFirst().containerMenu.setCarried(ItemStack.EMPTY));
+				ctx.waitTicks(2);
+				String state = ctx.computeOnClient(mc -> PlannerState.target().id() + ", done " + new java.util.TreeSet<>(PlannerState.doneSteps));
+				if (!state.startsWith("helmet, ") || !ctx.computeOnClient(mc -> PlannerState.doneSteps.contains(step))) {
+					throw new AssertionError("step " + (step + 1) + " of " + stepCount + " was not ticked after taking its result: " + state);
+				}
+			}
+			ctx.takeScreenshot("planner_follow_done");
+			System.out.println("[planner-test] following a " + stepCount + "-step plan: every step ticked itself, type stayed Helmet");
 
 			// settings: Mod Menu offers our screen; clicking the option once switches Closed -> Open
 			boolean hasModMenuEntry = FabricLoader.getInstance().getEntrypointContainers("modmenu", ModMenuApi.class)

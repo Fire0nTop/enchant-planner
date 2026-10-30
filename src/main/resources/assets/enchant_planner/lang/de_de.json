@@ -18,7 +18,7 @@
 	"enchant_planner.total": "Gesamt: %s Level",
 	"enchant_planner.total_xp": "%s XP · max. Schritt %s",
 	"enchant_planner.levels": "%s Lvl",
-	"enchant_planner.step_hint": "Schritt anklicken = erledigt",
+	"enchant_planner.step_hint": "Schritte haken sich selbst ab",
 	"enchant_planner.step": "Schritt %s",
 	"enchant_planner.slot1": "Linker Slot: %s",
 	"enchant_planner.slot2": "Rechter Slot: %s",
