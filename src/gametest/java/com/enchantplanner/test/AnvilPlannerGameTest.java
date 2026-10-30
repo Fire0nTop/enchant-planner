@@ -559,6 +559,55 @@ public class AnvilPlannerGameTest implements FabricClientGameTest {
 			});
 			ctx.waitTicks(3);
 
+			// a book made by a book + book step of the plan, found in the inventory, ticks that step
+			ctx.runOnClient(mc -> PlannerState.recompute()); // inventory is empty again: plan with single books
+			ctx.waitFor(mc -> !PlannerState.computing(), 400);
+			ctx.waitTicks(3);
+			int bookStep = ctx.computeOnClient(mc -> {
+				List<EnchantSolver.Step> steps = PlannerState.result().steps();
+				for (int i = 0; i < steps.size(); i++) {
+					if (!steps.get(i).left().isTarget()) {
+						return i;
+					}
+				}
+				return -1;
+			});
+			if (bookStep < 0) {
+				throw new AssertionError("expected a book + book step in " + ctx.computeOnClient(mc -> describePlan()));
+			}
+			Object[] madeBook = ctx.computeOnClient(mc -> {
+				EnchantSolver.Step st = PlannerState.result().steps().get(bookStep);
+				int[] ids = java.util.stream.IntStream.concat(java.util.Arrays.stream(st.left().enchants()),
+						java.util.Arrays.stream(st.right().enchants())).toArray();
+				return pieceSpec(new EnchantSolver.Piece(false, ids, EnchantSolver.workFromRepairCost(st.priorWorkPenaltyAfter())));
+			});
+			world.getServer().runOnServer(server -> {
+				ServerPlayer player = server.getPlayerList().getPlayers().getFirst();
+				var lookup = server.registryAccess().lookupOrThrow(Registries.ENCHANTMENT);
+				ItemStack book = new ItemStack(Items.ENCHANTED_BOOK);
+				@SuppressWarnings("unchecked")
+				Map<ResourceKey<Enchantment>, Integer> madeLevels = (Map<ResourceKey<Enchantment>, Integer>) madeBook[1];
+				madeLevels.forEach((key, level) -> book.enchant(lookup.getOrThrow(key), level));
+				book.set(DataComponents.REPAIR_COST, (Integer) madeBook[2]);
+				player.getInventory().add(book);
+				player.containerMenu.broadcastChanges();
+			});
+			ctx.waitTicks(5);
+			String made = ctx.computeOnClient(mc -> describePlan());
+			ctx.takeScreenshot("planner_made_book");
+			boolean onlyBookStep = ctx.computeOnClient(mc -> PlannerState.doneSteps.equals(Set.of(bookStep))
+					&& InventoryCheck.neededBooks(PlannerState.result()).size() == 2);
+			if (!onlyBookStep) {
+				throw new AssertionError("made book in the inventory: expected only step " + (bookStep + 1) + " ticked and 2 books still needed, got " + made);
+			}
+			System.out.println("[planner-test] made book: step " + (bookStep + 1) + " ticked from the book in the inventory");
+			world.getServer().runOnServer(server -> {
+				ServerPlayer player = server.getPlayerList().getPlayers().getFirst();
+				player.getInventory().clearContent();
+				player.containerMenu.broadcastChanges();
+			});
+			ctx.waitTicks(3);
+
 			// pickaxe: plan Mending + Unbreaking, put in the finished pickaxe (all done), tick Efficiency
 			// (doesn't fit the new plan: planned from the item) and untick it again (back to all done)
 			ctx.runOnClient(mc -> {

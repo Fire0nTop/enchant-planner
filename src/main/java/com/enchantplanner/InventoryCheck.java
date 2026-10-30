@@ -13,17 +13,25 @@ import java.util.Set;
 public final class InventoryCheck {
 	/** Slots 0-2 of the anvil menu are the anvil itself; the player's inventory follows. */
 	private static final int FIRST_INVENTORY_SLOT = 3;
+	private static final int RESULT_SLOT = 2;
 
 	private InventoryCheck() {
 	}
 
-	/** The books the plan starts from (the ones you need to bring), single or combined ones you have. */
+	/**
+	 * The books the plan starts from (the ones you need to bring), single or combined ones you have.
+	 * Books of steps that are already done aren't needed any more.
+	 */
 	public static List<EnchantSolver.Piece> neededBooks(EnchantSolver.Result plan) {
 		List<EnchantSolver.Piece> out = new ArrayList<>();
 		if (plan == null) {
 			return out;
 		}
-		for (EnchantSolver.Step s : plan.steps()) {
+		for (int i = 0; i < plan.steps().size(); i++) {
+			if (PlannerState.doneSteps.contains(i)) {
+				continue;
+			}
+			EnchantSolver.Step s = plan.steps().get(i);
 			for (EnchantSolver.Piece p : List.of(s.left(), s.right())) {
 				if (isStartingBook(plan, p)) {
 					out.add(p);
@@ -57,14 +65,45 @@ public final class InventoryCheck {
 		return out;
 	}
 
-	/** Is this piece anywhere in the anvil or the inventory? */
+	/** Is this piece in the anvil's inputs or the inventory (the result slot is only a preview)? */
 	public static boolean has(AbstractContainerMenu menu, EnchantSolver.Piece piece) {
-		for (Slot slot : menu.slots) {
-			if (PlanMatcher.matches(piece, slot.getItem())) {
+		for (int i = 0; i < menu.slots.size(); i++) {
+			if (i != RESULT_SLOT && PlanMatcher.matches(piece, menu.slots.get(i).getItem())) {
 				return true;
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * Tick the book + book steps whose finished book is in the inventory or the anvil, together with
+	 * the book steps that went into it. Never unticks: using the book up later is expected.
+	 */
+	public static void tickMadeBooks(AbstractContainerMenu menu, EnchantSolver.Result plan) {
+		if (plan == null) {
+			return;
+		}
+		List<EnchantSolver.Step> steps = plan.steps();
+		for (EnchantSolver.Step s : steps) {
+			if (s.left().isTarget()) {
+				continue;
+			}
+			Set<Integer> made = ids(s.left().enchants());
+			made.addAll(ids(s.right().enchants()));
+			int[] madeIds = made.stream().mapToInt(Integer::intValue).toArray();
+			EnchantSolver.Piece book = new EnchantSolver.Piece(false, madeIds,
+					EnchantSolver.workFromRepairCost(s.priorWorkPenaltyAfter()));
+			if (has(menu, book)) {
+				for (int j = 0; j < steps.size(); j++) {
+					EnchantSolver.Step t = steps.get(j);
+					Set<Integer> inner = ids(t.left().enchants());
+					inner.addAll(ids(t.right().enchants()));
+					if (!t.left().isTarget() && made.containsAll(inner)) {
+						PlannerState.doneSteps.add(j);
+					}
+				}
+			}
+		}
 	}
 
 	/** Books the plan needs that are neither in the anvil nor in the inventory. */

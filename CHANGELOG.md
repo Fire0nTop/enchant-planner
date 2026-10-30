@@ -8,6 +8,9 @@
 - Books you already have with several of the wanted enchantments (at the selected levels) are used
   as they are when that is cheaper, e.g. an Unbreaking III + Mending book saves a step. The plan is
   redone when you open an anvil; using books up while you follow it doesn't change it.
+- A combined book that a book + book step of the plan makes, found in your inventory, ticks that
+  step; books of finished steps no longer count as missing. The anvil's result preview doesn't
+  count as having a book.
 - The checklist follows the item in the anvil: an item at some stage of the plan ticks the steps
   that lead there and unticks the later ones, so swapping items updates it. Book + book steps tick
   when you take their result. An item that matches no stage of the plan becomes the starting item

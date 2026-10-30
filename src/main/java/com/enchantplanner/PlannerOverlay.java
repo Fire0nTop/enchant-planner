@@ -160,6 +160,9 @@ public final class PlannerOverlay {
 				PlannerState.recompute(); // so books you have now (e.g. with several enchantments) count
 			}
 			syncAnvilItem();
+			if (!PlannerState.computing()) {
+				InventoryCheck.tickMadeBooks(screen.getMenu(), PlannerState.result());
+			}
 		} catch (RuntimeException e) {
 			EnchantPlannerClient.LOGGER.error("Enchant Planner failed to read the anvil", e);
 		}
@@ -581,10 +584,14 @@ public final class PlannerOverlay {
 			int by = block.y() + 2;
 			g.text(font, done ? "✔" : (i + 1) + ".", bx, by + 4, done ? 0xFF80FF80 : TEXT_LIGHT, true);
 			g.item(icon(s.left()), bx + 13, by);
-			bookMarker(g, s.left(), bx + 13, by);
+			if (!done) {
+				bookMarker(g, s.left(), bx + 13, by);
+			}
 			g.text(font, "+", bx + 31, by + 4, TEXT_LIGHT, true);
 			g.item(icon(s.right()), bx + 38, by);
-			bookMarker(g, s.right(), bx + 38, by);
+			if (!done) {
+				bookMarker(g, s.right(), bx + 38, by);
+			}
 			String cost = Component.translatable("enchant_planner.levels", s.levels()).getString();
 			g.text(font, cost, block.right() - 3 - font.width(cost), by + 4, canAfford(s.levels()) ? COST_OK : COST_BAD, true);
 
