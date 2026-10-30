@@ -2,6 +2,7 @@ package com.enchantplanner;
 
 import com.enchantplanner.solver.EnchantSolver;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.enchantment.Enchantment;
 
 import java.util.ArrayList;
@@ -84,8 +85,71 @@ public final class PlannerState {
 	public static void setTarget(ItemType type) {
 		if (!type.equals(target())) {
 			target = type;
+			startItem = null;
 			catalog();
 		}
+	}
+
+	/**
+	 * The item the plan starts from: its enchantments cost nothing and its repair cost (from earlier
+	 * anvil use) is added to every step. {@code null} means a fresh item.
+	 *
+	 * @param autoSelected enchantments that were ticked because the item has them
+	 */
+	public record StartItem(ItemType type, Item item, Map<ResourceKey<Enchantment>, Integer> enchants, int repairCost,
+							Set<ResourceKey<Enchantment>> autoSelected) {
+	}
+
+	private static StartItem startItem;
+
+	public static StartItem startItem() {
+		return startItem;
+	}
+
+	/** Plan from an item with these enchantments and repair cost; ticks the enchantments it has. */
+	public static void setStartItem(Item item, Map<ResourceKey<Enchantment>, Integer> enchants, int repairCost) {
+		clearStartItem(false);
+		Set<ResourceKey<Enchantment>> auto = new HashSet<>();
+		for (Map.Entry<ResourceKey<Enchantment>, Integer> e : enchants.entrySet()) {
+			Integer selected = selection().get(e.getKey());
+			if (selected == null || selected < e.getValue()) {
+				selection().put(e.getKey(), e.getValue());
+				auto.add(e.getKey());
+			}
+		}
+		startItem = new StartItem(target(), item, Map.copyOf(enchants), repairCost, Set.copyOf(auto));
+		recompute();
+	}
+
+	public static void clearStartItem() {
+		clearStartItem(true);
+	}
+
+	private static void clearStartItem(boolean recompute) {
+		StartItem old = startItem;
+		if (old == null) {
+			return;
+		}
+		startItem = null;
+		// untick what was only ticked because the item had it
+		for (ResourceKey<Enchantment> key : old.autoSelected()) {
+			if (old.enchants().get(key).equals(selection().get(key))) {
+				selection().remove(key);
+			}
+		}
+		if (recompute) {
+			recompute();
+		}
+	}
+
+	/** Level of this enchantment already on the starting item, or 0. */
+	public static int ownedLevel(EnchantCatalog.Entry e) {
+		return startItem == null ? 0 : startItem.enchants().getOrDefault(e.key(), 0);
+	}
+
+	/** Enchantments on the starting item; empty for a fresh item. */
+	public static Map<ResourceKey<Enchantment>, Integer> startEnchants() {
+		return startItem == null ? Map.of() : startItem.enchants();
 	}
 
 	public static LinkedHashMap<ResourceKey<Enchantment>, Integer> selection() {
@@ -97,6 +161,7 @@ public final class PlannerState {
 	}
 
 	public static void setLevel(EnchantCatalog.Entry e, int level) {
+		level = Math.max(level, ownedLevel(e)); // the anvil can't remove what the item already has
 		if (level <= 0) {
 			selection().remove(e.key());
 		} else {
@@ -105,8 +170,10 @@ public final class PlannerState {
 		recompute();
 	}
 
+	/** Untick everything except what the starting item already has. */
 	public static void clear() {
 		selection().clear();
+		selection().putAll(startEnchants());
 		recompute();
 	}
 
@@ -152,8 +219,8 @@ public final class PlannerState {
 		List<EnchantSolver.Book> books = new ArrayList<>();
 		for (Map.Entry<ResourceKey<Enchantment>, Integer> sel : selection().entrySet()) {
 			EnchantCatalog.Entry e = cat.find(sel.getKey());
-			if (e == null) {
-				continue;
+			if (e == null || ownedLevel(e) >= sel.getValue()) {
+				continue; // already on the starting item
 			}
 			books.add(new EnchantSolver.Book(entries.size(), sel.getValue() * e.bookMultiplier()));
 			entries.add(e);
@@ -164,16 +231,23 @@ public final class PlannerState {
 		result = null;
 		impossible = false;
 
-		if (books.isEmpty() || books.size() > MAX_BOOKS) {
-			computing = false;
+		boolean bookTarget = catalogType.isBook();
+		int startWork = startItem == null || bookTarget ? 0 : EnchantSolver.workFromRepairCost(startItem.repairCost());
+		computing = false;
+		if (books.isEmpty()) {
+			if (!selection().isEmpty()) {
+				result = EnchantSolver.solve(books, bookTarget, mode, startWork, null); // nothing left to add
+			}
 			return;
 		}
-		boolean bookTarget = catalogType.isBook();
+		if (books.size() > MAX_BOOKS) {
+			return;
+		}
 		EnchantSolver.Mode m = mode;
 		computing = true;
 		EXECUTOR.submit(() -> {
 			try {
-				EnchantSolver.Result r = EnchantSolver.solve(books, bookTarget, m, () -> {
+				EnchantSolver.Result r = EnchantSolver.solve(books, bookTarget, m, startWork, () -> {
 					if (generation.get() != gen) {
 						throw new CancellationException();
 					}

@@ -14,10 +14,15 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.minecraft.client.gui.screens.inventory.AnvilScreen;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.enchantment.Enchantment;
+import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.level.block.Blocks;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.world.level.block.state.BlockState;
@@ -26,6 +31,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Opens an anvil, then for several window sizes and GUI scales clicks the planner's book button
@@ -46,9 +52,20 @@ public class AnvilPlannerGameTest implements FabricClientGameTest {
 	}
 
 	private static void putInAnvil(TestSingleplayerContext world, Item item) {
+		putInAnvil(world, item, 0, Map.of());
+	}
+
+	private static void putInAnvil(TestSingleplayerContext world, Item item, int repairCost,
+			Map<ResourceKey<Enchantment>, Integer> enchants) {
 		world.getServer().runOnServer(server -> {
 			ServerPlayer player = server.getPlayerList().getPlayers().getFirst();
-			player.containerMenu.getSlot(0).set(item == Items.AIR ? ItemStack.EMPTY : new ItemStack(item));
+			ItemStack stack = item == Items.AIR ? ItemStack.EMPTY : new ItemStack(item);
+			var lookup = server.registryAccess().lookupOrThrow(Registries.ENCHANTMENT);
+			enchants.forEach((key, level) -> stack.enchant(lookup.getOrThrow(key), level));
+			if (repairCost > 0) {
+				stack.set(DataComponents.REPAIR_COST, repairCost);
+			}
+			player.containerMenu.getSlot(0).set(stack);
 			player.containerMenu.broadcastChanges();
 		});
 	}
@@ -162,6 +179,50 @@ public class AnvilPlannerGameTest implements FabricClientGameTest {
 			expectHelmet(ctx, "diamond helmet in the anvil", typeCount);
 			putInAnvil(world, Items.AIR);
 			System.out.println("[planner-test] helmets: one Helmet entry, selection kept across materials");
+
+			// starting item: a used iron helmet with Protection IV (repair cost 3); adding Unbreaking III
+			// costs the book (3) plus the repair cost (3)
+			ctx.runOnClient(mc -> PlannerState.clear());
+			putInAnvil(world, Items.IRON_HELMET, 3, Map.of(Enchantments.PROTECTION, 4));
+			ctx.waitTicks(5);
+			String captured = ctx.computeOnClient(mc -> {
+				PlannerState.StartItem start = PlannerState.startItem();
+				return start == null ? "none" : start.repairCost() + " " + start.enchants();
+			});
+			if (!captured.startsWith("3 ") || !captured.contains("protection")) {
+				throw new AssertionError("used helmet not taken as the starting item: " + captured);
+			}
+			ctx.runOnClient(mc -> {
+				for (EnchantCatalog.Entry e : PlannerState.catalog().entries()) {
+					if (e.key().equals(Enchantments.UNBREAKING)) {
+						PlannerState.setLevel(e, 3);
+					}
+				}
+			});
+			ctx.waitFor(mc -> !PlannerState.computing(), 200);
+			ctx.waitTicks(3);
+			ctx.takeScreenshot("planner_start_item");
+			int levels = ctx.computeOnClient(mc -> PlannerState.result() == null ? -1 : PlannerState.result().totalLevels());
+			if (levels != 6) {
+				throw new AssertionError("expected Unbreaking III on the used helmet to cost 6 levels, got " + levels);
+			}
+			// the finished helmet (Protection IV + Unbreaking III, repair cost 7) is part of the plan: no restart
+			putInAnvil(world, Items.IRON_HELMET, 7, Map.of(Enchantments.PROTECTION, 4, Enchantments.UNBREAKING, 3));
+			ctx.waitTicks(5);
+			int stillFrom = ctx.computeOnClient(mc -> PlannerState.startItem() == null ? -1 : PlannerState.startItem().repairCost());
+			if (stillFrom != 3) {
+				throw new AssertionError("putting back the finished helmet restarted the plan (repair cost now " + stillFrom + ")");
+			}
+			// the x button: back to a fresh item, Protection no longer ticked
+			ctx.runOnClient(mc -> PlannerState.clearStartItem());
+			ctx.waitFor(mc -> !PlannerState.computing(), 200);
+			String fresh = ctx.computeOnClient(mc -> PlannerState.selectedCount() + " selected, "
+					+ (PlannerState.result() == null ? -1 : PlannerState.result().totalLevels()) + " levels");
+			if (!fresh.equals("1 selected, 3 levels")) {
+				throw new AssertionError("clearing the starting item: expected 1 selected, 3 levels, got " + fresh);
+			}
+			putInAnvil(world, Items.AIR);
+			System.out.println("[planner-test] starting item: used helmet costs 6, finished helmet keeps the plan, x resets");
 
 			// settings: Mod Menu offers our screen; clicking the option once switches Closed -> Open
 			boolean hasModMenuEntry = FabricLoader.getInstance().getEntrypointContainers("modmenu", ModMenuApi.class)

@@ -50,5 +50,12 @@
 	"enchant_planner.item_type.spear": "Speer",
 	"enchant_planner.item_type.pickaxe": "Spitzhacke",
 	"enchant_planner.item_type.shovel": "Schaufel",
-	"enchant_planner.item_type.hoe": "Hacke"
+	"enchant_planner.item_type.hoe": "Hacke",
+	"enchant_planner.start_item": "Von deinem %s",
+	"enchant_planner.start_item.tip": "Geplant ab dem %s im Amboss: seine Verzauberungen bleiben kostenlos und sein Reparaturaufschlag (%s) kommt zu jedem Schritt dazu.",
+	"enchant_planner.start_item.clear": "Stattdessen für einen neuen Gegenstand planen",
+	"enchant_planner.on_item": "Schon auf deinem Gegenstand (%s): kostet nichts",
+	"enchant_planner.on_item.upgrade": "Dein Gegenstand hat %s; für die höhere Stufe brauchst du ein Buch",
+	"enchant_planner.impossible.used": "Zu teuer! Durch den Reparaturaufschlag deines Gegenstands hat jede Reihenfolge einen Schritt mit 40+ Leveln.",
+	"enchant_planner.all_owned": "Dein Gegenstand hat diese Verzauberungen schon alle."
 }

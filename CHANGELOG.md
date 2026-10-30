@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.0
+
+- Plans from the item you put in the anvil: enchantments it already has are kept for free (shown
+  in blue) and its repair cost from earlier anvil use is added to every step, so the levels match
+  what the anvil charges. "From your <item>" under the item type shows this; the x goes back to a
+  fresh item. Putting back a half-finished item from the plan doesn't restart it.
+
 ## 1.1.1
 
 - Items are grouped by type through item tags: every helmet, sword, pickaxe and so on shares one

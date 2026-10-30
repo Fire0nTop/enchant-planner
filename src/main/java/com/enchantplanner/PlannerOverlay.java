@@ -2,22 +2,26 @@ package com.enchantplanner;
 
 import com.enchantplanner.solver.EnchantSolver;
 import com.mojang.blaze3d.platform.InputConstants;
+import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.AnvilScreen;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.core.Holder;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Mth;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.item.enchantment.ItemEnchantments;
 
@@ -50,6 +54,7 @@ public final class PlannerOverlay {
 	private static final int TEXT_CURSE = 0xFFFF7070;
 	private static final int COST_OK = 0xFF80FF20;
 	private static final int COST_BAD = 0xFFFF6060;
+	private static final int COLOR_ON_ITEM = 0xFF8FD0FF;
 
 	private static final Identifier BUTTON = Identifier.withDefaultNamespace("widget/button");
 	private static final Identifier BUTTON_HOVER = Identifier.withDefaultNamespace("widget/button_highlighted");
@@ -89,14 +94,14 @@ public final class PlannerOverlay {
 	private static int enchantScroll;
 	private static int gridScroll;
 	private static int stepScroll;
-	private Item lastAnvilItem;
+	private ItemStack lastAnvilStack;
 
 	public PlannerOverlay(AnvilScreen screen) {
 		this.screen = screen;
 		this.mc = Minecraft.getInstance();
 		this.font = mc.font;
 		this.bookIcon = glint(new ItemStack(Items.ENCHANTED_BOOK));
-		this.lastAnvilItem = anvilItem(0).isEmpty() ? null : anvilItem(0).getItem();
+		this.lastAnvilStack = anvilItem(0).copy();
 		PlannerState.catalog();
 	}
 
@@ -211,7 +216,25 @@ public final class PlannerOverlay {
 		}
 		textButton(g, clear, Component.translatable("enchant_planner.clear").getString(), mx, my, PlannerState::clear);
 
-		setupList = new Rect(r.x() + PAD, item.bottom() + 4, bw, by - 3 - item.bottom() - 4);
+		// "From your Iron Helmet [x]" when the plan starts from the item in the anvil
+		int listTop = item.bottom() + 4;
+		PlannerState.StartItem start = PlannerState.startItem();
+		if (start != null) {
+			Rect line = new Rect(r.x() + PAD, item.bottom() + 3, bw, 11);
+			Rect close = new Rect(line.right() - 10, line.y() + 1, 9, 9);
+			String name = start.item().getName(new ItemStack(start.item())).getString();
+			String text = Component.translatable("enchant_planner.start_item", name).getString();
+			g.text(font, ellipsize(text, line.w() - 13), line.x() + 1, line.y() + 1, 0xFF1F5F9F, false);
+			miniButton(g, close, "x", mx, my, true);
+			hotspots.add(new Hotspot(close, PlannerState::clearStartItem));
+			if (line.contains(mx, my)) {
+				g.setTooltipForNextFrame(font, Component.translatable(close.contains(mx, my) ? "enchant_planner.start_item.clear"
+						: "enchant_planner.start_item.tip", name, start.repairCost()), mx, my);
+			}
+			listTop = line.bottom() + 2;
+		}
+
+		setupList = new Rect(r.x() + PAD, listTop, bw, by - 3 - listTop);
 		inset(g, setupList);
 		if (pickingItem) {
 			extractItemGrid(g, types, mx, my);
@@ -328,6 +351,8 @@ public final class PlannerOverlay {
 			}
 			boolean blocked = !conflicts.isEmpty();
 			boolean hover = inArea && row.contains(mx, my);
+			int owned = PlannerState.ownedLevel(e);
+			boolean onItem = owned > 0 && owned >= level; // already there: no book needed
 
 			if (hover && !blocked) {
 				// registered before the level buttons so those win (hotspots are tested newest first)
@@ -346,12 +371,12 @@ public final class PlannerOverlay {
 			g.fill(cx, cy, cx + 8, cy + 8, blocked ? 0xFF6A6A6A : 0xFF202020);
 			g.fill(cx + 1, cy + 1, cx + 7, cy + 7, blocked ? 0xFF7E7E7E : 0xFFB0B0B0);
 			if (on) {
-				g.fill(cx + 2, cy + 2, cx + 6, cy + 6, 0xFF3FB43F);
+				g.fill(cx + 2, cy + 2, cx + 6, cy + 6, onItem ? COLOR_ON_ITEM : 0xFF3FB43F);
 			}
 
 			boolean levelControls = on && e.maxLevel() > 1;
 			int nameW = row.w() - 14 - (levelControls ? 34 : 2);
-			int color = blocked ? TEXT_DIM : e.curse() ? TEXT_CURSE : on ? TEXT_GOLD : TEXT_LIGHT;
+			int color = blocked ? TEXT_DIM : e.curse() ? TEXT_CURSE : onItem ? COLOR_ON_ITEM : on ? TEXT_GOLD : TEXT_LIGHT;
 			String label = on && !levelControls && e.maxLevel() > 1 ? e.displayName(level).getString() : e.name();
 			g.text(font, ellipsize(label, nameW), row.x() + 13, row.y() + 2, color, !blocked);
 
@@ -371,6 +396,9 @@ public final class PlannerOverlay {
 			if (hover) {
 				if (blocked) {
 					g.setTooltipForNextFrame(font, Component.translatable("enchant_planner.incompatible", String.join(", ", conflicts)), mx, my);
+				} else if (owned > 0) {
+					g.setTooltipForNextFrame(font, Component.translatable(onItem ? "enchant_planner.on_item" : "enchant_planner.on_item.upgrade",
+							e.displayName(owned)), mx, my);
 				} else if (font.width(label) > nameW) {
 					g.setTooltipForNextFrame(font, Component.literal(label), mx, my);
 				}
@@ -399,7 +427,7 @@ public final class PlannerOverlay {
 			wrapped(g, Component.translatable("enchant_planner.select_hint"), tx, y, tw, TEXT_DARK);
 			return;
 		}
-		if (count > PlannerState.MAX_BOOKS) {
+		if (PlannerState.solvedEntries().size() > PlannerState.MAX_BOOKS) {
 			wrapped(g, Component.translatable("enchant_planner.too_many", PlannerState.MAX_BOOKS), tx, y, tw, 0xFFAA2020);
 			return;
 		}
@@ -409,14 +437,16 @@ public final class PlannerOverlay {
 			return;
 		}
 		if (PlannerState.impossible()) {
-			wrapped(g, Component.translatable("enchant_planner.impossible"), tx, y, tw, 0xFFAA2020);
+			wrapped(g, Component.translatable(PlannerState.startItem() != null && PlannerState.startItem().repairCost() > 0
+					? "enchant_planner.impossible.used" : "enchant_planner.impossible"), tx, y, tw, 0xFFAA2020);
 			return;
 		}
 		if (res == null) {
 			return;
 		}
 		if (res.steps().isEmpty()) {
-			wrapped(g, Component.translatable("enchant_planner.nothing_to_do"), tx, y, tw, TEXT_DARK);
+			wrapped(g, Component.translatable(PlannerState.startItem() != null ? "enchant_planner.all_owned" : "enchant_planner.nothing_to_do"),
+					tx, y, tw, TEXT_DARK);
 			return;
 		}
 
@@ -541,7 +571,7 @@ public final class PlannerOverlay {
 			return bookIcon;
 		}
 		ItemStack s = targetIcon();
-		return p.enchants().length > 0 ? glint(s) : s;
+		return p.enchants().length > 0 || !PlannerState.startEnchants().isEmpty() ? glint(s) : s;
 	}
 
 	/** The item in the anvil if it is of the planned type (e.g. an iron helmet), else the type's icon. */
@@ -558,16 +588,27 @@ public final class PlannerOverlay {
 		if (p.isTarget() ? !PlannerState.target().contains(stack) : !stack.is(Items.ENCHANTED_BOOK)) {
 			return false;
 		}
-		ItemEnchantments ench = EnchantmentHelper.getEnchantmentsForCrafting(stack);
-		if (ench.size() != p.enchants().length) {
-			return false;
+		return enchantLevels(stack).equals(expectedLevels(p));
+	}
+
+	/** The enchantments a piece of the plan has: for the item, what it started with plus what the step added. */
+	private static Map<ResourceKey<Enchantment>, Integer> expectedLevels(EnchantSolver.Piece p) {
+		Map<ResourceKey<Enchantment>, Integer> out = new HashMap<>();
+		if (p.isTarget()) {
+			out.putAll(PlannerState.startEnchants());
 		}
 		for (int id : p.enchants()) {
-			if (ench.getLevel(PlannerState.solvedEntries().get(id).holder()) != PlannerState.solvedLevels().get(id)) {
-				return false;
-			}
+			out.put(PlannerState.solvedEntries().get(id).key(), PlannerState.solvedLevels().get(id));
 		}
-		return true;
+		return out;
+	}
+
+	private static Map<ResourceKey<Enchantment>, Integer> enchantLevels(ItemStack stack) {
+		Map<ResourceKey<Enchantment>, Integer> out = new HashMap<>();
+		for (Object2IntMap.Entry<Holder<Enchantment>> e : EnchantmentHelper.getEnchantmentsForCrafting(stack).entrySet()) {
+			e.getKey().unwrapKey().ifPresent(k -> out.put(k, e.getIntValue()));
+		}
+		return out;
 	}
 
 	private boolean canAfford(int levels) {
@@ -623,16 +664,55 @@ public final class PlannerOverlay {
 
 	private void syncAnvilItem() {
 		ItemStack in = anvilItem(0);
-		Item item = in.isEmpty() ? null : in.getItem();
-		if (item != lastAnvilItem) {
-			lastAnvilItem = item;
-			// select the item's type (an iron helmet selects "Helmet"); taking it out changes nothing
-			if (item != null && !PlannerState.target().contains(in)
-					&& (ItemType.all().stream().anyMatch(t -> t.contains(in)) || EnchantCatalog.isEnchantTarget(item))) {
-				selectTarget(ItemType.of(in));
-				pickingItem = false;
+		if (ItemStack.matches(in, lastAnvilStack)) {
+			return;
+		}
+		lastAnvilStack = in.copy();
+		if (in.isEmpty()) {
+			return; // taking the item out changes nothing
+		}
+		// select the item's type (an iron helmet selects "Helmet")
+		if (!PlannerState.target().contains(in)
+				&& (ItemType.all().stream().anyMatch(t -> t.contains(in)) || EnchantCatalog.isEnchantTarget(in.getItem()))) {
+			selectTarget(ItemType.of(in));
+			pickingItem = false;
+		}
+		if (PlannerState.target().contains(in) && !PlannerState.target().isBook() && !isPlannedState(in)) {
+			captureStartItem(in);
+		}
+	}
+
+	/** Plan from this item: keep its enchantments and pay its repair cost. A fresh item resets to a fresh plan. */
+	private void captureStartItem(ItemStack in) {
+		Map<ResourceKey<Enchantment>, Integer> enchants = new HashMap<>(enchantLevels(in));
+		enchants.keySet().removeIf(k -> PlannerState.catalog().find(k) == null);
+		int repairCost = in.getOrDefault(DataComponents.REPAIR_COST, 0);
+		PlannerState.StartItem current = PlannerState.startItem();
+		if (enchants.isEmpty() && repairCost == 0) {
+			PlannerState.clearStartItem();
+		} else if (current == null || current.item() != in.getItem() || !current.enchants().equals(enchants)
+				|| current.repairCost() != repairCost) {
+			PlannerState.setStartItem(in.getItem(), enchants, repairCost);
+		}
+	}
+
+	/** Is this the item at some point of the current plan (so putting it back must not restart the plan)? */
+	private boolean isPlannedState(ItemStack in) {
+		EnchantSolver.Result res = PlannerState.result();
+		if (res == null || res.steps().isEmpty()) {
+			return false;
+		}
+		for (EnchantSolver.Step s : res.steps()) {
+			if (s.left().isTarget() && s.left().enchants().length > 0 && matches(s.left(), in)) {
+				return true;
 			}
 		}
+		// the finished item: what it started with plus everything planned
+		int[] all = new int[PlannerState.solvedEntries().size()];
+		for (int i = 0; i < all.length; i++) {
+			all[i] = i;
+		}
+		return matches(new EnchantSolver.Piece(true, all, 0), in);
 	}
 
 	private ItemStack anvilItem(int slot) {

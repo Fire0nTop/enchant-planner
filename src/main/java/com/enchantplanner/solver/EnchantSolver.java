@@ -66,6 +66,10 @@ public final class EnchantSolver {
 		final int mergeCost;
 
 		Node(boolean isTarget, boolean isBookBase, int[] enchants, int value) {
+			this(isTarget, isBookBase, enchants, value, 0);
+		}
+
+		Node(boolean isTarget, boolean isBookBase, int[] enchants, int value, int work) {
 			this.isTarget = isTarget;
 			this.isBookBase = isBookBase;
 			this.enchants = enchants;
@@ -74,7 +78,7 @@ public final class EnchantSolver {
 				m |= 1L << id;
 			}
 			this.mask = m;
-			this.work = 0;
+			this.work = work;
 			this.value = value;
 			this.xp = 0;
 			this.left = null;
@@ -123,13 +127,26 @@ public final class EnchantSolver {
 	 * @return the best order, or {@code null} if every order hits "Too Expensive!"
 	 */
 	public static Result solve(List<Book> books, boolean bookTarget, Mode mode, Runnable cancelCheck) {
-		if (books.isEmpty() || (bookTarget && books.size() < 2)) {
-			return new Result(List.of(), 0, 0, 0, 0);
-		}
-		return new EnchantSolver(cancelCheck == null ? () -> {} : cancelCheck).run(books, bookTarget, mode);
+		return solve(books, bookTarget, mode, 0, cancelCheck);
 	}
 
-	private Result run(List<Book> books, boolean bookTarget, Mode mode) {
+	/**
+	 * @param startWork how often the item has already been through an anvil (its repair cost is
+	 *                  {@code 2^startWork - 1}); ignored for a book target
+	 */
+	public static Result solve(List<Book> books, boolean bookTarget, Mode mode, int startWork, Runnable cancelCheck) {
+		if (books.isEmpty() || (bookTarget && books.size() < 2)) {
+			return new Result(List.of(), 0, 0, 0, penalty(bookTarget ? 0 : startWork));
+		}
+		return new EnchantSolver(cancelCheck == null ? () -> {} : cancelCheck).run(books, bookTarget, mode, startWork);
+	}
+
+	/** The anvil-use count for a repair cost: 0 → 0, 1 → 1, 3 → 2, 7 → 3, … (rounded up otherwise). */
+	public static int workFromRepairCost(int repairCost) {
+		return repairCost <= 0 ? 0 : 32 - Integer.numberOfLeadingZeros(repairCost);
+	}
+
+	private Result run(List<Book> books, boolean bookTarget, Mode mode, int startWork) {
 		List<Node> pieces = new ArrayList<>();
 		for (Book b : books) {
 			pieces.add(new Node(false, false, new int[]{b.id()}, b.value()));
@@ -140,7 +157,7 @@ public final class EnchantSolver {
 			Node top = pieces.remove(mostExpensive(pieces));
 			base = new Node(false, true, top.enchants, top.value);
 		} else {
-			base = new Node(true, false, new int[0], 0);
+			base = new Node(true, false, new int[0], 0, startWork);
 		}
 		Node first;
 		try {

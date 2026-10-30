@@ -72,4 +72,27 @@ class EnchantSolverTest {
 		long ms = (System.nanoTime() - start) / 1_000_000;
 		assertTrue(ms < 10_000, "took " + ms + " ms");
 	}
+
+	@Test
+	void startingItemPaysItsPriorWork() {
+		// one Sharpness V book (value 5) on an item that went through the anvil twice (repair cost 3)
+		List<EnchantSolver.Book> books = List.of(new EnchantSolver.Book(0, 5));
+		EnchantSolver.Result fresh = EnchantSolver.solve(books, false, EnchantSolver.Mode.LEVELS, 0, null);
+		EnchantSolver.Result used = EnchantSolver.solve(books, false, EnchantSolver.Mode.LEVELS, 2, null);
+		assertEquals(5, fresh.totalLevels());
+		assertEquals(8, used.totalLevels());
+		assertEquals(7, used.finalPriorWork());
+
+		// a heavily used item (repair cost 31) makes 9-level books too expensive
+		assertEquals(null, EnchantSolver.solve(List.of(new EnchantSolver.Book(0, 9)), false, EnchantSolver.Mode.LEVELS, 5, null));
+	}
+
+	@Test
+	void repairCostToWork() {
+		assertEquals(0, EnchantSolver.workFromRepairCost(0));
+		assertEquals(1, EnchantSolver.workFromRepairCost(1));
+		assertEquals(2, EnchantSolver.workFromRepairCost(3));
+		assertEquals(3, EnchantSolver.workFromRepairCost(7));
+		assertEquals(5, EnchantSolver.workFromRepairCost(31));
+	}
 }

@@ -50,5 +50,12 @@
 	"enchant_planner.item_type.spear": "Spear",
 	"enchant_planner.item_type.pickaxe": "Pickaxe",
 	"enchant_planner.item_type.shovel": "Shovel",
-	"enchant_planner.item_type.hoe": "Hoe"
+	"enchant_planner.item_type.hoe": "Hoe",
+	"enchant_planner.start_item": "From your %s",
+	"enchant_planner.start_item.tip": "Planning from the %s in the anvil: its enchantments are kept for free and its repair cost (%s) is added to every step.",
+	"enchant_planner.start_item.clear": "Plan for a fresh item instead",
+	"enchant_planner.on_item": "Already on your item (%s): costs nothing",
+	"enchant_planner.on_item.upgrade": "Your item has %s; a book is needed for the higher level",
+	"enchant_planner.impossible.used": "Too Expensive! Your item's repair cost pushes every order to a step of 40+ levels.",
+	"enchant_planner.all_owned": "Your item already has all of these enchantments."
 }
