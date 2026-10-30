@@ -27,8 +27,18 @@ public final class EnchantSolver {
 		PRIOR_WORK
 	}
 
-	/** One enchantment book to apply. {@code value} = level × book anvil-cost multiplier. */
-	public record Book(int id, int value) {
+	/**
+	 * A book to apply: usually one enchantment, but a book you already have can carry several.
+	 *
+	 * @param ids   enchantment ids on the book
+	 * @param value sum of level × book anvil-cost multiplier over its enchantments
+	 * @param work  how often the book has already been through an anvil
+	 */
+	public record Book(int[] ids, int value, int work) {
+		/** A fresh single-enchantment book. */
+		public Book(int id, int value) {
+			this(new int[]{id}, value, 0);
+		}
 	}
 
 	/** One side of an anvil operation: the target item, or a book holding {@code enchants}. */
@@ -149,13 +159,13 @@ public final class EnchantSolver {
 	private Result run(List<Book> books, boolean bookTarget, Mode mode, int startWork) {
 		List<Node> pieces = new ArrayList<>();
 		for (Book b : books) {
-			pieces.add(new Node(false, false, new int[]{b.id()}, b.value()));
+			pieces.add(new Node(false, false, b.ids().clone(), b.value(), b.work()));
 		}
 
 		Node base;
 		if (bookTarget) {
 			Node top = pieces.remove(mostExpensive(pieces));
-			base = new Node(false, true, top.enchants, top.value);
+			base = new Node(false, true, top.enchants, top.value, top.work);
 		} else {
 			base = new Node(true, false, new int[0], 0, startWork);
 		}

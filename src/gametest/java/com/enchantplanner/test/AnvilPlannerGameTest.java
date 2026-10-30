@@ -519,6 +519,46 @@ public class AnvilPlannerGameTest implements FabricClientGameTest {
 			});
 			ctx.waitTicks(3);
 
+			// a combined Unbreaking III + Mending book in the inventory is used as it is
+			world.getServer().runOnServer(server -> {
+				ServerPlayer player = server.getPlayerList().getPlayers().getFirst();
+				var lookup = server.registryAccess().lookupOrThrow(Registries.ENCHANTMENT);
+				player.getInventory().add(new ItemStack(Items.IRON_HELMET));
+				ItemStack combined = new ItemStack(Items.ENCHANTED_BOOK);
+				combined.enchant(lookup.getOrThrow(Enchantments.UNBREAKING), 3);
+				combined.enchant(lookup.getOrThrow(Enchantments.MENDING), 1);
+				player.getInventory().add(combined);
+				for (var key : List.of(Enchantments.PROTECTION, Enchantments.RESPIRATION)) {
+					ItemStack single = new ItemStack(Items.ENCHANTED_BOOK);
+					single.enchant(lookup.getOrThrow(key), key == Enchantments.PROTECTION ? 4 : 3);
+					player.getInventory().add(single);
+				}
+				player.containerMenu.broadcastChanges();
+			});
+			ctx.waitTicks(5);
+			ctx.runOnClient(mc -> PlannerState.recompute());
+			ctx.waitFor(mc -> !PlannerState.computing(), 400);
+			ctx.waitTicks(3);
+			String withCombined = ctx.computeOnClient(mc -> {
+				EnchantSolver.Result plan = PlannerState.result();
+				List<EnchantSolver.Piece> needed = InventoryCheck.neededBooks(plan);
+				boolean usesCombined = needed.stream().anyMatch(b -> b.enchants().length == 2);
+				return plan.steps().size() + " steps, " + needed.size() + " books, "
+						+ (usesCombined ? "uses the combined book" : "no combined book") + ", "
+						+ InventoryCheck.missingBooks(mc.player.containerMenu, plan).size() + " missing";
+			});
+			System.out.println("[planner-test] combined book: " + withCombined);
+			ctx.takeScreenshot("planner_combined_book");
+			if (!withCombined.equals("3 steps, 3 books, uses the combined book, 0 missing")) {
+				throw new AssertionError("combined book: expected '3 steps, 3 books, uses the combined book, 0 missing', got " + withCombined);
+			}
+			world.getServer().runOnServer(server -> {
+				ServerPlayer player = server.getPlayerList().getPlayers().getFirst();
+				player.getInventory().clearContent();
+				player.containerMenu.broadcastChanges();
+			});
+			ctx.waitTicks(3);
+
 			// pickaxe: plan Mending + Unbreaking, put in the finished pickaxe (all done), tick Efficiency
 			// (doesn't fit the new plan: planned from the item) and untick it again (back to all done)
 			ctx.runOnClient(mc -> {

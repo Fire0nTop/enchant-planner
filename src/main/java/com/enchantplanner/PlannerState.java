@@ -1,7 +1,13 @@
 package com.enchantplanner;
 
 import com.enchantplanner.solver.EnchantSolver;
+import net.minecraft.client.Minecraft;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.inventory.AnvilMenu;
+import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.enchantment.Enchantment;
 
@@ -260,6 +266,91 @@ public final class PlannerState {
 		return selection().size();
 	}
 
+	/**
+	 * Enchanted books in the open anvil screen (inventory included) that carry two or more of the
+	 * enchantments still needed, each at exactly the selected level, as solver books.
+	 */
+	private static List<EnchantSolver.Book> ownedBooks(List<EnchantCatalog.Entry> entries, List<Integer> levels, int needed) {
+		List<EnchantSolver.Book> out = new ArrayList<>();
+		Minecraft mc = Minecraft.getInstance();
+		if (mc.player == null || !(mc.player.containerMenu instanceof AnvilMenu menu)) {
+			return out;
+		}
+		Set<Set<Integer>> seen = new HashSet<>();
+		for (Slot slot : menu.slots) {
+			ItemStack stack = slot.getItem();
+			if (!stack.is(Items.ENCHANTED_BOOK)) {
+				continue;
+			}
+			Map<ResourceKey<Enchantment>, Integer> onBook = PlanMatcher.enchantLevels(stack);
+			if (onBook.size() < 2) {
+				continue;
+			}
+			List<Integer> ids = new ArrayList<>();
+			int value = 0;
+			for (Map.Entry<ResourceKey<Enchantment>, Integer> e : onBook.entrySet()) {
+				int id = -1;
+				for (int i = 0; i < entries.size(); i++) {
+					if (entries.get(i).key().equals(e.getKey()) && levels.get(i).equals(e.getValue())) {
+						id = i;
+					}
+				}
+				if (id < 0) {
+					ids = null; // has something the plan doesn't want (or another level)
+					break;
+				}
+				ids.add(id);
+				value += e.getValue() * entries.get(id).bookMultiplier();
+			}
+			if (ids != null && seen.add(new HashSet<>(ids))) {
+				int repairCost = stack.getOrDefault(DataComponents.REPAIR_COST, 0);
+				out.add(new EnchantSolver.Book(ids.stream().mapToInt(Integer::intValue).toArray(), value,
+						EnchantSolver.workFromRepairCost(repairCost)));
+			}
+		}
+		// every combination is a full search, so keep the number of tries reasonable
+		out.sort((a, b) -> b.ids().length - a.ids().length);
+		int limit = needed <= 8 ? 8 : 3;
+		return out.size() > limit ? new ArrayList<>(out.subList(0, limit)) : out;
+	}
+
+	/** The single books with the chosen owned books swapped in, or {@code null} if those overlap. */
+	private static List<EnchantSolver.Book> withOwnedBooks(List<EnchantSolver.Book> singles, List<EnchantSolver.Book> owned, int subset) {
+		Set<Integer> covered = new HashSet<>();
+		List<EnchantSolver.Book> out = new ArrayList<>();
+		for (int i = 0; i < owned.size(); i++) {
+			if ((subset & (1 << i)) != 0) {
+				for (int id : owned.get(i).ids()) {
+					if (!covered.add(id)) {
+						return null;
+					}
+				}
+				out.add(owned.get(i));
+			}
+		}
+		for (EnchantSolver.Book b : singles) {
+			if (!covered.contains(b.ids()[0])) {
+				out.add(b);
+			}
+		}
+		return out;
+	}
+
+	private static boolean cheaper(EnchantSolver.Result a, EnchantSolver.Result b, EnchantSolver.Mode mode) {
+		if (a == null) {
+			return false;
+		}
+		if (b == null) {
+			return true;
+		}
+		double xpA = a.steps().stream().mapToDouble(EnchantSolver.Step::xp).sum();
+		double xpB = b.steps().stream().mapToDouble(EnchantSolver.Step::xp).sum();
+		if (mode == EnchantSolver.Mode.PRIOR_WORK && a.finalPriorWork() != b.finalPriorWork()) {
+			return a.finalPriorWork() < b.finalPriorWork();
+		}
+		return xpA < xpB;
+	}
+
 	public static void recompute() {
 		EnchantCatalog cat = catalog;
 		if (cat == null) {
@@ -298,14 +389,27 @@ public final class PlannerState {
 			return;
 		}
 		EnchantSolver.Mode m = mode;
+		List<EnchantSolver.Book> owned = ownedBooks(entries, levels, books.size());
 		computing = true;
 		EXECUTOR.submit(() -> {
 			try {
-				EnchantSolver.Result r = EnchantSolver.solve(books, bookTarget, m, startWork, () -> {
+				Runnable cancel = () -> {
 					if (generation.get() != gen) {
 						throw new CancellationException();
 					}
-				});
+				};
+				EnchantSolver.Result r = EnchantSolver.solve(books, bookTarget, m, startWork, cancel);
+				// try the books you already have with several of the enchantments on them, alone and
+				// together, and keep whatever is cheapest
+				for (int subset = 1; subset < (1 << owned.size()); subset++) {
+					List<EnchantSolver.Book> pieces = withOwnedBooks(books, owned, subset);
+					if (pieces != null) {
+						EnchantSolver.Result alt = EnchantSolver.solve(pieces, bookTarget, m, startWork, cancel);
+						if (cheaper(alt, r, m)) {
+							r = alt;
+						}
+					}
+				}
 				if (generation.get() == gen) {
 					result = r;
 					impossible = r == null;

@@ -106,7 +106,11 @@ public final class PlannerOverlay {
 	private int lastStepInAnvil = -1;
 	private EnchantSolver.Result lastPlan;
 
-	public PlannerOverlay(AnvilScreen screen) {
+	/** Ticks until the plan is redone for a newly opened anvil (once the inventory has arrived), or -1. */
+	private int replanIn;
+
+	public PlannerOverlay(AnvilScreen screen, boolean newAnvil) {
+		this.replanIn = newAnvil ? 5 : -1;
 		this.screen = screen;
 		this.mc = Minecraft.getInstance();
 		this.font = mc.font;
@@ -152,6 +156,9 @@ public final class PlannerOverlay {
 	/** Every client tick: follow what is in the anvil (independent of how often frames are drawn). */
 	public void tick() {
 		try {
+			if (replanIn > 0 && --replanIn == 0) {
+				PlannerState.recompute(); // so books you have now (e.g. with several enchantments) count
+			}
 			syncAnvilItem();
 		} catch (RuntimeException e) {
 			EnchantPlannerClient.LOGGER.error("Enchant Planner failed to read the anvil", e);
@@ -615,7 +622,7 @@ public final class PlannerOverlay {
 
 	/** A small dot on a book the plan starts from: green if you have it, red if you still need it. */
 	private void bookMarker(GuiGraphicsExtractor g, EnchantSolver.Piece p, int x, int y) {
-		if (p.isTarget() || p.priorWork() > 0) {
+		if (PlannerState.result() == null || !InventoryCheck.isStartingBook(PlannerState.result(), p)) {
 			return;
 		}
 		boolean have = InventoryCheck.has(screen.getMenu(), p);

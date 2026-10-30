@@ -26,11 +26,12 @@ public final class EnchantPlannerClient implements ClientModInitializer {
 			if (!(screen instanceof AnvilScreen anvil)) {
 				return;
 			}
-			if (lastAnvil.get() != screen) {
+			boolean newAnvil = lastAnvil.get() != screen;
+			if (newAnvil) {
 				lastAnvil = new WeakReference<>(screen);
 				PlannerState.visible = PlannerConfig.get().visibleOnOpen();
 			}
-			PlannerOverlay overlay = new PlannerOverlay(anvil);
+			PlannerOverlay overlay = new PlannerOverlay(anvil, newAnvil);
 			ScreenEvents.afterExtract(screen).register((s, g, mouseX, mouseY, delta) -> overlay.extract(g, mouseX, mouseY));
 			ScreenEvents.afterTick(screen).register(s -> overlay.tick());
 			ScreenMouseEvents.allowMouseClick(screen).register((s, event) -> !overlay.mouseClicked(event.x(), event.y(), event.button()));

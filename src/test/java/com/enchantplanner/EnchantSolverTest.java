@@ -95,4 +95,22 @@ class EnchantSolverTest {
 		assertEquals(3, EnchantSolver.workFromRepairCost(7));
 		assertEquals(5, EnchantSolver.workFromRepairCost(31));
 	}
+
+	@Test
+	void multiEnchantmentBookIsOneStep() {
+		// item + Sharpness V (5), Unbreaking III (3) and Mending (2): with Unbreaking + Mending on one
+		// book the plan needs two anvil steps instead of three
+		List<EnchantSolver.Book> singles = List.of(new EnchantSolver.Book(0, 5), new EnchantSolver.Book(1, 3), new EnchantSolver.Book(2, 2));
+		List<EnchantSolver.Book> combined = List.of(new EnchantSolver.Book(0, 5), new EnchantSolver.Book(new int[]{1, 2}, 5, 0));
+		EnchantSolver.Result a = EnchantSolver.solve(singles, false, EnchantSolver.Mode.LEVELS, null);
+		EnchantSolver.Result b = EnchantSolver.solve(combined, false, EnchantSolver.Mode.LEVELS, null);
+		assertEquals(3, a.steps().size());
+		assertEquals(2, b.steps().size());
+		assertTrue(b.totalLevels() < a.totalLevels(), b.totalLevels() + " vs " + a.totalLevels());
+
+		// a combined book that went through the anvil once costs its penalty too
+		EnchantSolver.Result used = EnchantSolver.solve(List.of(new EnchantSolver.Book(0, 5), new EnchantSolver.Book(new int[]{1, 2}, 5, 1)),
+				false, EnchantSolver.Mode.LEVELS, null);
+		assertEquals(b.totalLevels() + 1, used.totalLevels());
+	}
 }

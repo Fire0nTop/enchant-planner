@@ -5,7 +5,9 @@ import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /** What of the current plan is in the player's inventory (or already in the anvil). */
 public final class InventoryCheck {
@@ -15,7 +17,7 @@ public final class InventoryCheck {
 	private InventoryCheck() {
 	}
 
-	/** The single-enchantment books the plan starts from (the ones you need to bring). */
+	/** The books the plan starts from (the ones you need to bring), single or combined ones you have. */
 	public static List<EnchantSolver.Piece> neededBooks(EnchantSolver.Result plan) {
 		List<EnchantSolver.Piece> out = new ArrayList<>();
 		if (plan == null) {
@@ -23,10 +25,34 @@ public final class InventoryCheck {
 		}
 		for (EnchantSolver.Step s : plan.steps()) {
 			for (EnchantSolver.Piece p : List.of(s.left(), s.right())) {
-				if (!p.isTarget() && p.priorWork() == 0) {
+				if (isStartingBook(plan, p)) {
 					out.add(p);
 				}
 			}
+		}
+		return out;
+	}
+
+	/** A book that no step of the plan makes, i.e. one you bring rather than combine on the way. */
+	public static boolean isStartingBook(EnchantSolver.Result plan, EnchantSolver.Piece p) {
+		if (p.isTarget()) {
+			return false;
+		}
+		Set<Integer> ids = ids(p.enchants());
+		for (EnchantSolver.Step s : plan.steps()) {
+			Set<Integer> made = ids(s.left().enchants());
+			made.addAll(ids(s.right().enchants()));
+			if (!s.left().isTarget() && made.equals(ids)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	private static Set<Integer> ids(int[] ids) {
+		Set<Integer> out = new HashSet<>();
+		for (int id : ids) {
+			out.add(id);
 		}
 		return out;
 	}
