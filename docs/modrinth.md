@@ -5,7 +5,7 @@ Releases are published by GitHub Actions (`.github/workflows/build.yml`). Pushin
 
 - creates a GitHub release with both jars, and
 - uploads one Modrinth version per Minecraft version (`1.0.1+26.2` for 26.2, `1.0.1+26.3` for
-  26.3), marked as needing Fabric API, with that version's `CHANGELOG.md` section as its changelog.
+  26.3), marked client-only and as needing Fabric API, with that version's `CHANGELOG.md` section as its changelog.
 
 The Modrinth step is skipped (with a notice) until the setup below is done.
 

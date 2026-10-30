@@ -2,6 +2,7 @@
 # Uploads one jar as a new Modrinth version.
 # Usage: modrinth-upload.sh <mod version> <minecraft version> <jar>
 # Needs MODRINTH_TOKEN and MODRINTH_PROJECT (project id or slug) in the environment.
+# Versions are marked client-only: the mod runs on the client and needs nothing on the server.
 set -euo pipefail
 mod_version="$1"
 mc="$2"
@@ -51,6 +52,7 @@ jq -n \
 		changelog: $changelog,
 		game_versions: [$mc],
 		loaders: ["fabric"],
+		environment: "client_only",
 		version_type: $type,
 		featured: true,
 		dependencies: [{project_id: "P7dR8mSH", dependency_type: "required"}],
